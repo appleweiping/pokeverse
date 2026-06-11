@@ -121,6 +121,16 @@ img.sprite {
 .anim-flash { animation: flashWhite 0.3s linear 2; }
 .anim-wobble { animation: ballWobble 0.7s ease-in-out; }
 
+/* weather particles */
+@keyframes weatherRain {
+  from { transform: translateY(-12%); }
+  to { transform: translateY(12%); }
+}
+@keyframes weatherHail {
+  from { background-position: 0 0; }
+  to { background-position: 4px 18px; }
+}
+
 /* evolution glow */
 @keyframes evoPulse {
   0%, 100% { filter: brightness(1); transform: scale(1); }

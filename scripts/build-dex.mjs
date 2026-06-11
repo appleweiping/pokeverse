@@ -162,6 +162,12 @@ async function main() {
 
       chainIds.add(idFromUrl(sp.evolution_chain?.url ?? ""));
 
+      // abilities: [normalAbilitySlug, ...] then hidden ability last with !prefix
+      const abilities = pk.abilities
+        .slice()
+        .sort((a, b) => a.slot - b.slot)
+        .map((a) => (a.is_hidden ? "!" : "") + a.ability.name);
+
       dex[id - 1] = {
         id,
         n: pickNames(sp.names),
@@ -173,6 +179,9 @@ async function main() {
         be: pk.base_experience ?? 0,
         gr: GROWTH[sp.growth_rate?.name] ?? 1,
         cr: sp.capture_rate ?? 45,
+        ab: abilities,
+        // gender rate: -1 genderless, else female ratio in eighths (0-8)
+        gen: sp.gender_rate ?? -1,
       };
     },
     "pokemon"

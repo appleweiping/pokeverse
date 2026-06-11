@@ -5,8 +5,10 @@ import { useI18n, LOCALES } from "@/lib/i18n";
 import { getDexMap, getMoveMap, localName, MAX_DEX_ID } from "@/lib/data/dex";
 import type { DexEntry, Mon, MoveData } from "@/lib/types";
 import { NATURES, expForLevel } from "@/lib/data/formulas";
+import { abilityName } from "@/lib/data/abilities";
 import { maxHPOf, statsOf } from "@/lib/game/factory";
 import { ITEMS, MART_STOCK } from "@/lib/game/items";
+import type { ItemDef } from "@/lib/types";
 import { audio } from "@/lib/audio/tracks";
 import { HPBar, MonSprite, StatusBadge, TypeBadge, PokeballIcon } from "@/components/shared";
 
@@ -23,6 +25,7 @@ export default function MenuUI() {
   const [moveMap, setMoveMap] = useState<Map<number, MoveData> | null>(null);
   const [detail, setDetail] = useState<number | null>(null); // party index
   const [pickTarget, setPickTarget] = useState<string | null>(null); // itemId waiting for target
+  const [giveHeld, setGiveHeld] = useState<number | null>(null); // party index waiting for held item
   const [importText, setImportText] = useState("");
 
   useEffect(() => {
@@ -67,7 +70,11 @@ export default function MenuUI() {
                 <div className="flex flex-col items-center gap-1">
                   <MonSprite id={mon.speciesId} shiny={mon.shiny} size={120} animateGen5 />
                   <div className="flex gap-1">{sp.t.map((tp) => <TypeBadge key={tp} type={tp} small />)}</div>
-                  {mon.shiny && <span className="text-xs font-bold text-amber-400">★ SHINY</span>}
+                  <div className="flex items-center gap-2 text-xs">
+                    {mon.gender === "m" && <span className="font-bold text-sky-400">♂</span>}
+                    {mon.gender === "f" && <span className="font-bold text-pink-400">♀</span>}
+                    {mon.shiny && <span className="font-bold text-amber-400">★</span>}
+                  </div>
                 </div>
                 <div className="min-w-[220px] flex-1">
                   <div className="mb-1 flex items-center justify-between text-sm">
@@ -90,6 +97,14 @@ export default function MenuUI() {
                       <span className="text-slate-400">{t("game.party.next_lv")}</span>
                       <b className="tabular-nums">{next}</b>
                     </div>
+                    <div className="flex justify-between py-0.5">
+                      <span className="text-slate-400">{t("game.party.ability")}</span>
+                      <b>{abilityName(mon.ability, locale) || "—"}</b>
+                    </div>
+                    <div className="flex justify-between py-0.5">
+                      <span className="text-slate-400">{t("game.party.held")}</span>
+                      <b>{mon.item ? t(`items.${mon.item}.n`) : "—"}</b>
+                    </div>
                   </div>
                   <div className="mt-3">
                     <div className="mb-1 text-xs font-bold text-slate-400">{t("game.party.moves")}</div>
@@ -105,21 +120,71 @@ export default function MenuUI() {
                       })}
                     </div>
                   </div>
-                  {detail > 0 && (
-                    <button
-                      className="pixel-btn mt-3 bg-sky-600 px-3 py-1.5 text-[13px] font-bold text-white"
-                      onClick={() => {
-                        audio.sfx("select");
-                        const arr = save.party;
-                        [arr[0], arr[detail]] = [arr[detail], arr[0]];
-                        g.bump(); setDetail(0);
-                      }}
-                    >
-                      ↑ {t("game.party.switch")} #1
-                    </button>
-                  )}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {detail > 0 && (
+                      <button
+                        className="pixel-btn bg-sky-600 px-3 py-1.5 text-[13px] font-bold text-white"
+                        onClick={() => {
+                          audio.sfx("select");
+                          const arr = save.party;
+                          [arr[0], arr[detail]] = [arr[detail], arr[0]];
+                          g.bump(); setDetail(0);
+                        }}
+                      >
+                        ↑ {t("game.party.switch")} #1
+                      </button>
+                    )}
+                    {mon.item ? (
+                      <button
+                        className="pixel-btn bg-amber-600 px-3 py-1.5 text-[13px] font-bold text-white"
+                        onClick={() => {
+                          audio.sfx("select");
+                          g.giveItem(mon.item!, 1);
+                          g.showToast(t("game.party.held_taken", { name: monName(mon), item: t(`items.${mon.item}.n`) }));
+                          mon.item = null; g.bump();
+                        }}
+                      >
+                        {t("game.party.take")}
+                      </button>
+                    ) : (
+                      <button
+                        className="pixel-btn bg-emerald-700 px-3 py-1.5 text-[13px] font-bold text-white"
+                        onClick={() => { audio.sfx("select"); setGiveHeld(detail); }}
+                      >
+                        {t("game.party.give")}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
+              {giveHeld === detail && (
+                <div className="mt-3 rounded-lg bg-slate-900/70 p-3">
+                  <div className="mb-2 text-xs font-bold text-slate-400">{t("game.party.give")}</div>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(save.bag)
+                      .filter(([id, n]) => n > 0 && (ITEMS[id]?.category === "berry" || ITEMS[id]?.category === "hold"))
+                      .map(([id]) => (
+                        <button
+                          key={id}
+                          className="pixel-btn bg-slate-700 px-2.5 py-1.5 text-[12px] font-bold text-white"
+                          onClick={() => {
+                            audio.sfx("select");
+                            if (mon.item) g.giveItem(mon.item, 1);
+                            mon.item = id;
+                            save.bag[id]--; if (save.bag[id] <= 0) delete save.bag[id];
+                            g.showToast(t("game.party.held_given", { name: monName(mon), item: t(`items.${id}.n`) }));
+                            setGiveHeld(null); g.bump();
+                          }}
+                        >
+                          {t(`items.${id}.n`)} ×{save.bag[id]}
+                        </button>
+                      ))}
+                    {Object.entries(save.bag).filter(([id, n]) => n > 0 && (ITEMS[id]?.category === "berry" || ITEMS[id]?.category === "hold")).length === 0 && (
+                      <span className="text-xs text-slate-500">{t("game.bag.empty")}</span>
+                    )}
+                  </div>
+                </div>
+              )}
             </Panel>
           );
         }
@@ -155,8 +220,9 @@ export default function MenuUI() {
       }
       // ---------------------------------------------------------------- bag
       case "bag": {
-        const cats: ["ball" | "medicine" | "battle" | "key", string][] = [
-          ["ball", t("game.bag.balls")], ["medicine", t("game.bag.medicine")], ["battle", t("game.bag.medicine")], ["key", t("game.bag.key")],
+        const cats: [ItemDef["category"], string][] = [
+          ["ball", t("game.bag.balls")], ["medicine", t("game.bag.medicine")], ["berry", t("game.bag.berries")],
+          ["battle", t("game.bag.medicine")], ["hold", t("game.bag.berries")], ["key", t("game.bag.key")],
         ];
         const entries = Object.entries(save.bag).filter(([, n]) => n > 0);
         if (pickTarget) {

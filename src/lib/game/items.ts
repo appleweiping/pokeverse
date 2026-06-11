@@ -23,12 +23,22 @@ export const ITEMS: Record<string, ItemDef> = {
   "leaf-stone":     { id: "leaf-stone", category: "battle", price: 3000, evoItem: "leaf-stone" },
   "moon-stone":     { id: "moon-stone", category: "battle", price: 3000, evoItem: "moon-stone" },
   "town-map":       { id: "town-map", category: "key", price: 0 },
+  // ---- held berries (auto-trigger in battle) ----
+  "oran-berry":     { id: "oran-berry", category: "berry", price: 100, berry: { healBelow: 0.5, healAmount: 10 } },
+  "sitrus-berry":   { id: "sitrus-berry", category: "berry", price: 300, berry: { healBelow: 0.5, healFraction: 0.25 } },
+  "lum-berry":      { id: "lum-berry", category: "berry", price: 300, berry: { cureStatus: "all" } },
+  "cheri-berry":    { id: "cheri-berry", category: "berry", price: 100, berry: { cureStatus: ["par"] } },
+  "chesto-berry":   { id: "chesto-berry", category: "berry", price: 100, berry: { cureStatus: ["slp"] } },
+  "pecha-berry":    { id: "pecha-berry", category: "berry", price: 100, berry: { cureStatus: ["psn", "tox"] } },
+  "rawst-berry":    { id: "rawst-berry", category: "berry", price: 100, berry: { cureStatus: ["brn"] } },
+  "aspear-berry":   { id: "aspear-berry", category: "berry", price: 100, berry: { cureStatus: ["frz"] } },
 };
 
 /** What the Poké Mart sells (item id + display order). */
 export const MART_STOCK: string[] = [
   "poke-ball", "great-ball", "potion", "super-potion", "antidote",
   "paralyze-heal", "awakening", "burn-heal", "revive",
+  "oran-berry", "sitrus-berry", "lum-berry",
 ];
 
 export const BALL_ORDER = ["poke-ball", "great-ball", "ultra-ball"];

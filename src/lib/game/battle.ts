@@ -1,9 +1,10 @@
-import type { DexEntry, MajorStatus, Mon, MoveData, StatStageKey } from "../types";
+import type { DexEntry, MajorStatus, Mon, MoveData, StatStageKey, TypeName, Weather } from "../types";
 import { effectiveness } from "../data/typechart";
 import { accStageMult, attemptCapture, expGain, stageMult, statusCatchMult } from "../data/formulas";
 import { getMoveMap, getSpecies } from "../data/dex";
 import { applyExp, statsOf } from "./factory";
 import { ITEMS } from "./items";
+import { ABILITIES, type AbilityDef } from "../data/abilities";
 
 // ---------------------------------------------------------------------------
 // Battle events — the UI replays these sequentially with animations.
@@ -17,6 +18,8 @@ export type BattleEvent =
   | { t: "exp"; exp: number; toNext: number; pct: number }
   | { t: "level"; level: number }
   | { t: "switch"; side: Side; view: BattlerPublicView }
+  | { t: "weather"; weather: Weather }
+  | { t: "ability"; side: Side; ability: string }
   | { t: "end"; result: BattleResult };
 
 export type Side = "player" | "enemy";
@@ -59,6 +62,15 @@ interface Battler {
   toxicN: number;
   /** enemy PP is tracked here so wild mons don't mutate save data */
   pp: number[];
+  ability: AbilityDef | null;
+  /** flash-fire activated (1.5× own fire moves) */
+  fireBoost: boolean;
+  /** held berry consumed flag (one-time) */
+  berryUsed: boolean;
+}
+
+function abilityOf(mon: Mon): AbilityDef | null {
+  return mon.ability ? ABILITIES[mon.ability] ?? null : null;
 }
 
 function freshStages(): Record<StatStageKey, number> {
@@ -89,6 +101,9 @@ async function makeBattler(mon: Mon): Promise<Battler> {
     sleepTurns: mon.status === "slp" ? 2 : 0,
     toxicN: 1,
     pp: mon.moves.map((m) => m.pp),
+    ability: abilityOf(mon),
+    fireBoost: false,
+    berryUsed: false,
   };
 }
 
@@ -109,6 +124,8 @@ export class BattleSession {
   /** moves the active mon may learn after the battle: [monUid, level, moveId] */
   pendingLearns: { uid: string; moveId: number }[] = [];
   expEarnedBy = new Set<string>();
+  weather: Weather = "none";
+  weatherTurns = 0;
   private moveMap!: Map<number, MoveData>;
 
   private constructor(kind: "wild" | "trainer", party: Mon[], enemyParty: Mon[], rng: () => number, trainer?: TrainerInfo) {
@@ -131,6 +148,39 @@ export class BattleSession {
     s.player = await makeBattler(party[Math.max(0, firstAble)]);
     s.enemy = await makeBattler(enemyParty[0]);
     return s;
+  }
+
+  /** Switch-in ability triggers (weather setters, intimidate). Call after intro. */
+  introAbilities(): BattleEvent[] {
+    const ev: BattleEvent[] = [];
+    // faster mon's ability would announce first, but order is cosmetic here
+    for (const b of [this.enemy, this.player] as Battler[]) {
+      this.onSwitchIn(b, ev);
+    }
+    return ev;
+  }
+
+  private onSwitchIn(b: Battler, ev: BattleEvent[]) {
+    const ab = b.ability;
+    if (!ab) return;
+    const side: Side = b === this.player ? "player" : "enemy";
+    if (ab.weather) {
+      const w = ab.weather as Weather;
+      if (this.weather !== w) {
+        this.weather = w;
+        this.weatherTurns = 5;
+        ev.push({ t: "ability", side, ability: ab.slug });
+        ev.push({ t: "weather", weather: w });
+        ev.push({ t: "msg", key: `game.battle.weather_${w}_start` });
+      }
+    }
+    if (ab.intimidate) {
+      const foe = b === this.player ? this.enemy : this.player;
+      if (foe.mon.curHP > 0 && (foe.ability?.slug !== "clear-body")) {
+        ev.push({ t: "ability", side, ability: ab.slug });
+        this.applyStatChange(foe, "attack", -1, ev);
+      }
+    }
   }
 
   playerView() { return viewOf(this.player); }
@@ -421,8 +471,9 @@ export class BattleSession {
     }
     ev.push({ t: "anim", kind: "attack", side: isPlayer ? "player" : "enemy" });
 
-    // --- accuracy
-    if (move.a > 0) {
+    // --- accuracy (No Guard on either side bypasses the check)
+    const noGuard = att.ability?.noGuard || def.ability?.noGuard;
+    if (move.a > 0 && !noGuard) {
       const acc = (move.a / 100) * accStageMult(att.stages.acc) / accStageMult(def.stages.eva);
       if (this.rng() > acc) {
         ev.push({ t: "msg", key: "game.battle.missed" });
@@ -433,9 +484,58 @@ export class BattleSession {
     const defSide: Side = def === this.player ? "player" : "enemy";
 
     if (move.c === 2) {
+      // ------- weather-setting moves
+      const WEATHER_MOVES: Record<number, Weather> = { 241: "sun", 240: "rain", 201: "sand", 258: "hail" };
+      const w = WEATHER_MOVES[move.id];
+      if (w) {
+        if (this.weather === w) {
+          ev.push({ t: "msg", key: "game.battle.missed" });
+        } else {
+          this.weather = w;
+          this.weatherTurns = 5;
+          ev.push({ t: "weather", weather: w });
+          ev.push({ t: "msg", key: `game.battle.weather_${w}_start` });
+        }
+        return;
+      }
       // ------- status move
       this.applyMoveEffects(att, def, move, ev, 0, true);
       return;
+    }
+
+    // ------- ability-based immunities & absorption (defender)
+    const dab = def.ability;
+    if (dab) {
+      if (dab.levitate && move.t === "ground") {
+        ev.push({ t: "ability", side: defSide, ability: dab.slug });
+        ev.push({ t: "msg", key: "game.battle.immune" });
+        return;
+      }
+      if (dab.absorbType === move.t) {
+        ev.push({ t: "ability", side: defSide, ability: dab.slug });
+        const heal = Math.max(1, Math.floor(def.stats[0] / 4));
+        if (def.mon.curHP < def.stats[0]) {
+          def.mon.curHP = Math.min(def.stats[0], def.mon.curHP + heal);
+          ev.push({ t: "msg", key: "game.battle.healed", params: this.nameParam(def) });
+          ev.push({ t: "hp", side: defSide, hp: def.mon.curHP, maxHp: def.stats[0] });
+        } else {
+          ev.push({ t: "msg", key: "game.battle.immune" });
+        }
+        return;
+      }
+      if (dab.absorbBoost && dab.absorbBoost.type === move.t) {
+        ev.push({ t: "ability", side: defSide, ability: dab.slug });
+        if (dab.slug === "flash-fire") {
+          def.fireBoost = true;
+          ev.push({ t: "msg", key: "game.battle.flashfire", params: this.nameParam(def) });
+        } else if (dab.absorbBoost.stages > 0) {
+          const statName = { atk: "attack", spa: "special-attack", spe: "speed" }[dab.absorbBoost.stat];
+          this.applyStatChange(def, statName, dab.absorbBoost.stages, ev);
+        } else {
+          ev.push({ t: "msg", key: "game.battle.immune" });
+        }
+        return;
+      }
     }
 
     // ------- damaging move
@@ -489,7 +589,10 @@ export class BattleSession {
       ev.push({ t: "hp", side: att === this.player ? "player" : "enemy", hp: att.mon.curHP, maxHp: att.stats[0] });
     }
 
-    if (def.mon.curHP > 0) this.applyMoveEffects(att, def, move, ev, total, false);
+    if (def.mon.curHP > 0) {
+      this.applyMoveEffects(att, def, move, ev, total, false);
+      this.checkBerry(def, ev); // pinch berry after taking the hit
+    }
   }
 
   private computeDamage(
@@ -498,36 +601,67 @@ export class BattleSession {
     src: { move?: MoveData; power?: number; phys?: boolean; typeless?: boolean }
   ): { dmg: number; crit: boolean } {
     const move = src.move;
-    const power = move ? move.p : src.power ?? 40;
+    let power = move ? move.p : src.power ?? 40;
     if (power <= 0) return { dmg: 0, crit: false };
     const phys = move ? move.c === 0 : !!src.phys;
     const L = att.mon.level;
+    const aAb = att.ability;
+    const dAb = def.ability;
+    const moveType: TypeName | null = src.typeless ? null : move ? move.t : null;
+
+    // technician: ≤60 BP gets 1.5×
+    if (aAb?.technician && power <= 60) power = Math.floor(power * 1.5);
+
     const critChance = move?.m?.crit ? 1 / 8 : 1 / 24;
     const crit = !src.typeless && this.rng() < critChance;
     let aStage = phys ? att.stages.atk : att.stages.spa;
     let dStage = phys ? def.stages.def : def.stages.spd;
     if (crit) { aStage = Math.max(0, aStage); dStage = Math.min(0, dStage); }
-    const A = att.stats[phys ? 1 : 3] * stageMult(aStage);
+    let A = att.stats[phys ? 1 : 3] * stageMult(aStage);
     const D = Math.max(1, def.stats[phys ? 2 : 4] * stageMult(dStage));
+    // huge/pure power double physical attack
+    if (phys && aAb?.doubleAtk) A *= 2;
+    // guts: 1.5× attack when statused
+    if (phys && aAb?.guts && att.mon.status) A *= 1.5;
     let dmg = Math.floor(Math.floor((Math.floor((2 * L) / 5 + 2) * power * A) / D) / 50) + 2;
-    if (!src.typeless && move) {
-      if (att.species.t.includes(move.t)) dmg *= 1.5; // STAB
-      dmg *= effectiveness(move.t, def.species.t);
+
+    if (moveType && move) {
+      if (att.species.t.includes(moveType)) dmg *= 1.5; // STAB
+      const eff = effectiveness(moveType, def.species.t);
+      dmg *= eff;
+      // pinch abilities: 1.5× own-type move when HP ≤ 1/3
+      if (aAb?.pinchType === moveType && att.mon.curHP <= att.stats[0] / 3) dmg *= 1.5;
+      // flash-fire boost
+      if (att.fireBoost && moveType === "fire") dmg *= 1.5;
+      // weather
+      if (this.weather === "sun") { if (moveType === "fire") dmg *= 1.5; else if (moveType === "water") dmg *= 0.5; }
+      else if (this.weather === "rain") { if (moveType === "water") dmg *= 1.5; else if (moveType === "fire") dmg *= 0.5; }
+      // defender abilities: thick-fat, resist, reduce-SE
+      if (dAb?.thickFat && (moveType === "fire" || moveType === "ice")) dmg *= 0.5;
+      if (dAb?.resistType === moveType) dmg *= 0.5;
+      if (dAb?.reduceSE && eff > 1) dmg *= 0.75;
     }
     if (crit) dmg *= 1.5;
-    if (phys && att.mon.status === "brn") dmg *= 0.5;
+    // burn halves physical unless Guts
+    if (phys && att.mon.status === "brn" && !aAb?.guts) dmg *= 0.5;
     dmg *= 0.85 + this.rng() * 0.15;
     return { dmg: Math.max(1, Math.floor(dmg)), crit };
   }
 
   private dealDamage(def: Battler, dmg: number, ev: BattleEvent[]) {
+    const side: Side = def === this.player ? "player" : "enemy";
+    // Sturdy: endure a OHKO from full HP with 1 HP
+    let sturdy = false;
+    if (def.ability?.sturdy && def.mon.curHP === def.stats[0] && dmg >= def.mon.curHP) {
+      dmg = def.mon.curHP - 1;
+      sturdy = true;
+    }
     def.mon.curHP = Math.max(0, def.mon.curHP - dmg);
-    ev.push({
-      t: "hp",
-      side: def === this.player ? "player" : "enemy",
-      hp: def.mon.curHP,
-      maxHp: def.stats[0],
-    });
+    ev.push({ t: "hp", side, hp: def.mon.curHP, maxHp: def.stats[0] });
+    if (sturdy) {
+      ev.push({ t: "ability", side, ability: "sturdy" });
+      ev.push({ t: "msg", key: "game.battle.sturdy", params: this.nameParam(def) });
+    }
   }
 
   private applyMoveEffects(att: Battler, def: Battler, move: MoveData, ev: BattleEvent[], dealt: number, isStatusMove: boolean) {
@@ -608,16 +742,70 @@ export class BattleSession {
     else if (ail === "sleep") status = "slp";
     else if (ail === "freeze" && !t.includes("ice")) status = "frz";
     if (!status) return;
+    // ability status immunity
+    if (def.ability?.statusImmune?.includes(status)) {
+      ev.push({ t: "ability", side, ability: def.ability.slug });
+      return;
+    }
     def.mon.status = status;
     if (status === "slp") def.sleepTurns = 1 + Math.floor(this.rng() * 3);
     if (status === "psn") def.toxicN = 1;
     ev.push({ t: "msg", key: `game.battle.${status}_inflict`, params: who });
     ev.push({ t: "status", side, status });
+    this.checkBerry(def, ev); // status-curing berry may trigger
+  }
+
+  /** Auto-trigger a held berry (after HP loss or status). Consumes the item. */
+  private checkBerry(b: Battler, ev: BattleEvent[]) {
+    if (b.berryUsed || !b.mon.item || b.mon.curHP <= 0) return;
+    const def = ITEMS[b.mon.item];
+    const berry = def?.berry;
+    if (!berry) return;
+    const side: Side = b === this.player ? "player" : "enemy";
+    let used = false;
+    if (berry.healBelow && b.mon.curHP <= b.stats[0] * berry.healBelow && b.mon.curHP < b.stats[0]) {
+      const amount = berry.healFraction ? Math.floor(b.stats[0] * berry.healFraction) : berry.healAmount ?? 0;
+      b.mon.curHP = Math.min(b.stats[0], b.mon.curHP + amount);
+      ev.push({ t: "msg", key: "game.battle.berry_heal", params: { ...this.nameParam(b), item: `%ITEM_${b.mon.item}%` } });
+      ev.push({ t: "hp", side, hp: b.mon.curHP, maxHp: b.stats[0] });
+      used = true;
+    } else if (berry.cureStatus && b.mon.status) {
+      const cures = berry.cureStatus === "all" || berry.cureStatus.includes(b.mon.status);
+      if (cures) {
+        b.mon.status = null;
+        b.sleepTurns = 0;
+        ev.push({ t: "msg", key: "game.battle.berry_cure", params: { ...this.nameParam(b), item: `%ITEM_${b.mon.item}%` } });
+        ev.push({ t: "status", side, status: null });
+        used = true;
+      }
+    }
+    if (used) {
+      b.berryUsed = true;
+      b.mon.item = null; // berry consumed
+    }
+  }
+
+  /** Is this battler immune to sand/hail chip damage? */
+  private weatherImmune(b: Battler, w: Weather): boolean {
+    if (w === "sand") return b.species.t.some((t) => t === "rock" || t === "ground" || t === "steel");
+    if (w === "hail") return b.species.t.includes("ice");
+    return true;
   }
 
   // -------------------------------------------------------------- end of turn
   private endOfTurn(ev: BattleEvent[]) {
     if (this.over) return;
+    // ---- weather chip damage
+    if (this.weather === "sand" || this.weather === "hail") {
+      for (const b of [this.player, this.enemy] as Battler[]) {
+        if (b.mon.curHP <= 0 || this.weatherImmune(b, this.weather)) continue;
+        const side: Side = b === this.player ? "player" : "enemy";
+        b.mon.curHP = Math.max(0, b.mon.curHP - Math.max(1, Math.floor(b.stats[0] / 16)));
+        ev.push({ t: "msg", key: `game.battle.weather_${this.weather}_dmg`, params: this.nameParam(b) });
+        ev.push({ t: "hp", side, hp: b.mon.curHP, maxHp: b.stats[0] });
+      }
+    }
+    // ---- status chip damage
     for (const b of [this.player, this.enemy] as Battler[]) {
       if (b.mon.curHP <= 0) continue;
       const side: Side = b === this.player ? "player" : "enemy";
@@ -630,6 +818,17 @@ export class BattleSession {
         b.mon.curHP = Math.max(0, b.mon.curHP - Math.max(1, Math.floor(b.stats[0] / 8)));
         ev.push({ t: "msg", key: "game.battle.psn_dmg", params: who });
         ev.push({ t: "hp", side, hp: b.mon.curHP, maxHp: b.stats[0] });
+      }
+    }
+    // ---- low-HP berry triggers
+    for (const b of [this.player, this.enemy] as Battler[]) this.checkBerry(b, ev);
+    // ---- weather countdown
+    if (this.weather !== "none" && this.weatherTurns > 0) {
+      this.weatherTurns--;
+      if (this.weatherTurns === 0) {
+        ev.push({ t: "msg", key: `game.battle.weather_${this.weather}_end` });
+        this.weather = "none";
+        ev.push({ t: "weather", weather: "none" });
       }
     }
     // faints from residual damage

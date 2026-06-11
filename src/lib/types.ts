@@ -39,8 +39,12 @@ export interface DexEntry {
   be: number; // base experience
   gr: number; // growth rate index (see formulas.ts)
   cr: number; // capture rate
+  ab?: string[]; // ability slugs; hidden ability prefixed with "!"
+  gen?: number; // gender rate: -1 genderless, else female ratio in eighths
   evo?: EvoEdge[];
 }
+
+export type Weather = "none" | "sun" | "rain" | "sand" | "hail";
 
 export interface MoveMeta {
   ail?: string;
@@ -98,6 +102,9 @@ export interface Mon {
   nickname?: string;
   ball: string;
   ot: string; // original trainer name
+  ability?: string; // resolved ability slug (chosen at creation)
+  item?: string | null; // held item id (berries etc.)
+  gender?: "m" | "f" | "n";
 }
 
 export type StatStageKey = "atk" | "def" | "spa" | "spd" | "spe" | "acc" | "eva";
@@ -130,7 +137,7 @@ export interface SaveData {
 
 export interface ItemDef {
   id: string;
-  category: "ball" | "medicine" | "battle" | "key";
+  category: "ball" | "medicine" | "battle" | "key" | "berry" | "hold";
   price: number;
   /** ball catch-rate multiplier */
   ballMult?: number;
@@ -142,4 +149,15 @@ export interface ItemDef {
   cure?: MajorStatus[] | "all";
   /** evolution stone item name (matches PokeAPI item names) */
   evoItem?: string;
+  /** held berry: auto-trigger in battle */
+  berry?: {
+    /** restore HP when HP drops below this fraction */
+    healBelow?: number;
+    healAmount?: number;     // flat HP, or...
+    healFraction?: number;   // fraction of max HP
+    /** cure this status automatically */
+    cureStatus?: MajorStatus[] | "all";
+    /** halve super-effective damage of this type once */
+    resistBerry?: TypeName;
+  };
 }

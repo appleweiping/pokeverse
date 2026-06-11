@@ -4,7 +4,8 @@ import { useGame } from "@/lib/game/state";
 import { useI18n } from "@/lib/i18n";
 import type { BattleAction, BattleEvent, BattlerPublicView, Side } from "@/lib/game/battle";
 import { getDexMap, getMoveMap, localName, type Locale } from "@/lib/data/dex";
-import type { DexEntry, MoveData } from "@/lib/types";
+import { abilityName } from "@/lib/data/abilities";
+import type { DexEntry, MoveData, Weather } from "@/lib/types";
 import { TYPE_COLORS } from "@/lib/data/typechart";
 import { ITEMS, BALL_ORDER } from "@/lib/game/items";
 import { audio } from "@/lib/audio/tracks";
@@ -29,6 +30,8 @@ export default function BattleUI() {
   const [enemyHidden, setEnemyHidden] = useState(false);
   const [ballAnim, setBallAnim] = useState<"none" | "fly" | "wobble">("none");
   const [swirl, setSwirl] = useState(true);
+  const [weather, setWeather] = useState<Weather>("none");
+  const [abilityFlash, setAbilityFlash] = useState<{ side: Side; name: string } | null>(null);
   const dexRef = useRef<Map<number, DexEntry> | null>(null);
   const movesRef = useRef<Map<number, MoveData> | null>(null);
   const busyRef = useRef(false);
@@ -38,12 +41,13 @@ export default function BattleUI() {
       const out: Record<string, string | number> = {};
       for (const [k, v] of Object.entries(params ?? {})) {
         if (typeof v === "string") {
-          out[k] = v.replace(/%(SPECIES|MOVE|ITEM|STAT|TR)_([\w.-]+)%/g, (_, kind, id) => {
+          out[k] = v.replace(/%(SPECIES|MOVE|ITEM|STAT|TR|ABILITY)_([\w.-]+)%/g, (_, kind, id) => {
             if (kind === "SPECIES") return localName(dexRef.current?.get(Number(id))?.n, locale);
             if (kind === "MOVE") return localName(movesRef.current?.get(Number(id))?.n, locale);
             if (kind === "ITEM") return t(`items.${id}.n`);
             if (kind === "STAT") return t(`game.stats.${id}`);
             if (kind === "TR") return t(id);
+            if (kind === "ABILITY") return abilityName(id, locale);
             return id;
           });
         } else out[k] = v;
@@ -76,6 +80,10 @@ export default function BattleUI() {
       const meName = localName(dexMap.get(session.playerView().speciesId)?.n, locale);
       setMsg(t("game.battle.go", { name: session.playerView().nickname ?? meName }));
       await sleep(900);
+      if (cancelled) return;
+      // switch-in abilities (weather setters, Intimidate)
+      const introEvents = session.introAbilities();
+      if (introEvents.length) await playEvents(introEvents);
       if (cancelled) return;
       setMode("menu");
     })();
@@ -114,6 +122,18 @@ export default function BattleUI() {
         case "level": {
           audio.sfx("levelup");
           await sleep(250);
+          break;
+        }
+        case "weather": {
+          setWeather(e.weather);
+          await sleep(150);
+          break;
+        }
+        case "ability": {
+          setAbilityFlash({ side: e.side, name: abilityName(e.ability, locale) });
+          audio.sfx("stat_up");
+          await sleep(550);
+          setAbilityFlash(null);
           break;
         }
         case "anim": {
@@ -213,6 +233,20 @@ export default function BattleUI() {
   return (
     <div className="absolute inset-0 z-40 flex flex-col overflow-hidden bg-gradient-to-b from-[#86c4e8] via-[#b8e0c8] to-[#7ec850] text-ink">
       {swirl && <div className="absolute inset-0 z-50 bg-[#0a0c16]" style={{ animation: "battleSwirl .7s ease-out forwards" }} />}
+
+      {/* weather overlay */}
+      {weather !== "none" && <WeatherOverlay weather={weather} />}
+
+      {/* ability flash banner */}
+      {abilityFlash && (
+        <div
+          className={`pointer-events-none absolute z-30 ${abilityFlash.side === "enemy" ? "left-3 top-20" : "bottom-24 right-3"}`}
+        >
+          <div className="animate-pop rounded-lg border-2 border-amber-300 bg-ink/90 px-3 py-1.5 text-xs font-black text-amber-300 shadow-lg">
+            {abilityFlash.name}
+          </div>
+        </div>
+      )}
 
       {/* arena */}
       <div className="relative flex-1">
@@ -392,5 +426,35 @@ function BackBtn({ onClick, label }: { onClick: () => void; label: string }) {
     >
       ← {label}
     </button>
+  );
+}
+
+/** CSS-only weather effect layer drawn over the battle arena. */
+function WeatherOverlay({ weather }: { weather: Weather }) {
+  const tint: Record<string, string> = {
+    sun: "rgba(255,200,80,0.16)",
+    rain: "rgba(60,90,160,0.20)",
+    sand: "rgba(200,170,90,0.22)",
+    hail: "rgba(180,210,235,0.20)",
+  };
+  // particle streaks for rain/hail/sand via repeating gradients
+  const particles =
+    weather === "rain"
+      ? { background: "repeating-linear-gradient(105deg, rgba(180,210,255,.35) 0 1px, transparent 1px 7px)", anim: "weatherRain .5s linear infinite" }
+      : weather === "hail"
+      ? { background: "radial-gradient(rgba(220,240,255,.6) 1.4px, transparent 1.6px)", size: "16px 16px", anim: "weatherHail .8s linear infinite" }
+      : weather === "sand"
+      ? { background: "repeating-linear-gradient(100deg, rgba(210,180,110,.3) 0 2px, transparent 2px 9px)", anim: "weatherRain .7s linear infinite" }
+      : null;
+  return (
+    <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
+      <div className="absolute inset-0" style={{ background: tint[weather] }} />
+      {particles && (
+        <div
+          className="absolute inset-[-20%]"
+          style={{ background: particles.background, backgroundSize: particles.size, animation: particles.anim }}
+        />
+      )}
+    </div>
   );
 }

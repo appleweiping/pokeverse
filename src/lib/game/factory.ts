@@ -29,11 +29,28 @@ export interface MonWithSpecies {
   species: DexEntry;
 }
 
+/** Pick a non-hidden ability slug (hidden has 1/8 chance). */
+export function rollAbility(species: DexEntry, rng: () => number): string {
+  const list = species.ab ?? [];
+  if (!list.length) return "";
+  const normals = list.filter((a) => !a.startsWith("!"));
+  const hidden = list.filter((a) => a.startsWith("!")).map((a) => a.slice(1));
+  if (hidden.length && rng() < 1 / 8) return hidden[Math.floor(rng() * hidden.length)];
+  if (!normals.length) return hidden[0] ?? "";
+  return normals[Math.floor(rng() * normals.length)];
+}
+
+export function rollGender(species: DexEntry, rng: () => number): "m" | "f" | "n" {
+  const gr = species.gen ?? -1;
+  if (gr < 0) return "n";
+  return rng() < gr / 8 ? "f" : "m";
+}
+
 export async function createMon(
   speciesId: number,
   level: number,
   ot: string,
-  opts: { ball?: string; rng?: () => number } = {}
+  opts: { ball?: string; rng?: () => number; item?: string | null } = {}
 ): Promise<Mon> {
   const rng = opts.rng ?? Math.random;
   const species = await getSpecies(speciesId);
@@ -54,6 +71,9 @@ export async function createMon(
     shiny: rng() < 1 / 512,
     ball: opts.ball ?? "poke-ball",
     ot,
+    ability: rollAbility(species, rng),
+    gender: rollGender(species, rng),
+    item: opts.item ?? null,
   };
 }
 
