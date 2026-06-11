@@ -1,0 +1,159 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-pixel: "Press Start 2P", "Courier New", ui-monospace, monospace;
+  --font-pixel-cjk: "Press Start 2P", "Zpix", "Fusion Pixel", system-ui, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: #10131c;
+  color: #e8eaf2;
+  overflow-x: hidden;
+}
+
+/* crisp pixel scaling everywhere */
+.pixelated,
+canvas.game-canvas,
+img.sprite {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* retro panel (GB dialog style) */
+.pixel-panel {
+  background: #f8f8f8;
+  color: #16181f;
+  border: 3px solid #16181f;
+  border-radius: 6px;
+  box-shadow:
+    0 0 0 3px #f8f8f8,
+    0 0 0 6px #16181f,
+    0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.pixel-panel-dark {
+  background: #181d2c;
+  color: #e8eaf2;
+  border: 3px solid #2c3450;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.pixel-btn {
+  @apply select-none transition-transform active:translate-y-0.5;
+  border: 2px solid #16181f;
+  box-shadow: 0 3px 0 #16181f;
+  border-radius: 4px;
+}
+.pixel-btn:active {
+  box-shadow: 0 1px 0 #16181f;
+}
+
+/* blinking advance arrow */
+.adv-arrow::after {
+  content: "▼";
+  display: inline-block;
+  margin-left: 6px;
+  animation: blink 0.9s step-end infinite;
+}
+
+/* CRT scanline veneer for the landing hero */
+.scanlines::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.025) 0px,
+    rgba(255, 255, 255, 0.025) 1px,
+    transparent 2px,
+    transparent 4px
+  );
+  z-index: 30;
+}
+
+/* HP bar fill transition */
+.hp-fill {
+  transition: width 0.45s cubic-bezier(0.3, 0.9, 0.4, 1);
+}
+
+/* battle sprite animations */
+@keyframes spriteShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-8px); }
+  50% { transform: translateX(7px); }
+  75% { transform: translateX(-4px); }
+}
+@keyframes spriteLunge {
+  0%, 100% { transform: translate(0, 0); }
+  40% { transform: translate(14px, -10px); }
+}
+@keyframes spriteLungeEnemy {
+  0%, 100% { transform: translate(0, 0); }
+  40% { transform: translate(-14px, 10px); }
+}
+@keyframes spriteFaint {
+  to { transform: translateY(36px); opacity: 0; }
+}
+@keyframes flashWhite {
+  0%, 100% { filter: none; }
+  50% { filter: brightness(3) saturate(0); }
+}
+@keyframes ballWobble {
+  0%, 100% { transform: rotate(0deg); }
+  30% { transform: rotate(-22deg); }
+  70% { transform: rotate(20deg); }
+}
+@keyframes battleSwirl {
+  from { clip-path: circle(120% at 50% 50%); }
+  to { clip-path: circle(0% at 50% 50%); }
+}
+.anim-shake { animation: spriteShake 0.42s ease-in-out; }
+.anim-lunge { animation: spriteLunge 0.35s ease-in-out; }
+.anim-lunge-enemy { animation: spriteLungeEnemy 0.35s ease-in-out; }
+.anim-faint { animation: spriteFaint 0.6s ease-in forwards; }
+.anim-flash { animation: flashWhite 0.3s linear 2; }
+.anim-wobble { animation: ballWobble 0.7s ease-in-out; }
+
+/* evolution glow */
+@keyframes evoPulse {
+  0%, 100% { filter: brightness(1); transform: scale(1); }
+  50% { filter: brightness(4) saturate(0); transform: scale(1.06); }
+}
+.anim-evolve { animation: evoPulse 0.8s ease-in-out 4; }
+
+/* landing extras */
+@keyframes heroGrid {
+  from { background-position: 0 0; }
+  to { background-position: 0 48px; }
+}
+.hero-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 48px 48px;
+  animation: heroGrid 3.2s linear infinite;
+}
+
+.text-glow {
+  text-shadow: 0 0 18px rgba(255, 203, 5, 0.65), 0 0 60px rgba(255, 203, 5, 0.3);
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: #10131c; }
+::-webkit-scrollbar-thumb { background: #2c3450; border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: #3c4670; }
+
+/* virtual pad */
+.vpad-btn {
+  @apply flex items-center justify-center select-none touch-none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}

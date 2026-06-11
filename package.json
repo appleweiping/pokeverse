@@ -1,0 +1,29 @@
+{
+  "name": "pokeverse",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PokéVerse · Pixel Odyssey — a fan-made, web-based pixel Pokémon RPG with full Pokédex, battles, multiplayer and chiptune music.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "dex": "node scripts/build-dex.mjs"
+  },
+  "dependencies": {
+    "@fontsource/press-start-2p": "^5.2.7",
+    "next": "^15.3.3",
+    "peerjs": "^1.5.4",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zustand": "^5.0.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.8.3"
+  }
+}
