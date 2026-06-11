@@ -436,22 +436,25 @@ export class Overworld {
     this.busy = true;
     audio.sfx("select");
 
+    // badge -> post-victory message key prefix
+    const BADGE_GYM: Record<string, string> = { boulder: "gym1", tidal: "gym2" };
+
     if (d.trainer && !g.flag("tr:" + d.trainer.id)) {
       await g.showDialogue([tr(d.trainer.preKey)]);
       await g.startTrainerBattle(d.trainer);
       await waitForOverworld();
       if (g.flag("tr:" + d.trainer.id)) {
         const lines = [tr(d.trainer.loseKey)];
-        if (d.trainer.badge === "boulder") {
-          lines.push(tr("story.gym1_badge"), tr("story.gym1_after"));
-        }
+        const gym = d.trainer.badge ? BADGE_GYM[d.trainer.badge] : null;
+        if (gym) lines.push(tr(`story.${gym}_badge`), tr(`story.${gym}_after`));
         await g.showDialogue(lines);
       }
       this.busy = false;
       return;
     }
     if (d.trainer) {
-      await g.showDialogue([tr(d.trainer.badge ? "story.gym1_after" : "story.trainer_lose_generic")]);
+      const gym = d.trainer.badge ? BADGE_GYM[d.trainer.badge] : null;
+      await g.showDialogue([tr(gym ? `story.${gym}_after` : "story.trainer_lose_generic")]);
       this.busy = false;
       return;
     }
