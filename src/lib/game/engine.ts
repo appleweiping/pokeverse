@@ -289,6 +289,8 @@ export class Overworld {
     }
     // Surf: water becomes passable once the player can use Surf
     if (tile === T.WATER) return this.canField(57, "tidal");
+    // electric barriers drop when the map's switch flag is on
+    if (tile === T.BARRIER) return useGame.getState().flag("sw:" + this.map.id) > 0;
     if (SOLID.has(tile)) return false;
     if (this.npcs.some((n) => n.x === x && n.y === y)) return false;
     return true;
@@ -310,8 +312,20 @@ export class Overworld {
     // warp?
     const w = this.map.warps.find((w) => w.x === this.tx && w.y === this.ty);
     if (w) {
-      await this.warp(w.to, w.tx, w.ty, w.dir ?? this.dir);
-      return;
+      if (w.ifFlag && !g.flag(w.ifFlag)) {
+        this.busy = true;
+        await g.showDialogue([tr(w.lockedKey ?? "game.field.door_locked")]);
+        this.busy = false;
+      } else {
+        await this.warp(w.to, w.tx, w.ty, w.dir ?? this.dir);
+        return;
+      }
+    }
+    // floor switch: toggle this map's barriers
+    if (tileAt(this.map, this.tx, this.ty) === T.SWITCH) {
+      const key = "sw:" + this.map.id;
+      g.setFlag(key, g.flag(key) ? 0 : 1);
+      audio.sfx(g.flag(key) ? "stat_down" : "stat_up");
     }
     // leaving town with no Pokémon
     if (this.map.id === "sprout-town" && this.ty <= 1 && (!save || save.party.length === 0)) {
@@ -480,7 +494,7 @@ export class Overworld {
     audio.sfx("select");
 
     // badge -> post-victory message key prefix
-    const BADGE_GYM: Record<string, string> = { boulder: "gym1", tidal: "gym2" };
+    const BADGE_GYM: Record<string, string> = { boulder: "gym1", tidal: "gym2", volt: "gym3", meadow: "gym4" };
 
     if (d.trainer && !g.flag("tr:" + d.trainer.id)) {
       await g.showDialogue([tr(d.trainer.preKey)]);
@@ -491,6 +505,21 @@ export class Overworld {
         const gym = d.trainer.badge ? BADGE_GYM[d.trainer.badge] : null;
         if (gym) lines.push(tr(`story.${gym}_badge`), tr(`story.${gym}_after`));
         await g.showDialogue(lines);
+        // one-time reward item
+        if (d.trainer.reward && !g.flag("rw:" + d.trainer.id)) {
+          g.setFlag("rw:" + d.trainer.id, 1);
+          g.giveItem(d.trainer.reward.item, d.trainer.reward.qty);
+          audio.sfx("catch");
+          await g.showDialogue([
+            tr("game.field.bag_item", { item: tr(`items.${d.trainer.reward.item}.n`), n: d.trainer.reward.qty }),
+          ]);
+          g.persist();
+        }
+        // fleeing grunts vanish from the map immediately
+        if (d.trainer.vanish) {
+          audio.sfx("run");
+          this.npcs = this.npcs.filter((n) => n !== npc);
+        }
       }
       this.busy = false;
       return;
@@ -623,9 +652,17 @@ export class Overworld {
     const y0 = Math.max(0, Math.floor(camY / TILE));
     const x1 = Math.min(this.map.w - 1, Math.ceil((camX + viewW) / TILE));
     const y1 = Math.min(this.map.h - 1, Math.ceil((camY + viewH) / TILE));
+    const switched = useGame.getState().flag("sw:" + this.map.id) > 0;
     for (let y = y0; y <= y1; y++) {
       for (let x = x0; x <= x1; x++) {
-        drawTile(ctx, tileAt(this.map, x, y), frame, x * TILE, y * TILE);
+        let t = tileAt(this.map, x, y);
+        if (t === T.BARRIER && switched) t = T.BARRIER_OFF;
+        if (t === T.SWITCH) {
+          // switch state is positional, not animated
+          drawTile(ctx, T.SWITCH, switched ? 1 : 0, x * TILE, y * TILE);
+          continue;
+        }
+        drawTile(ctx, t, frame, x * TILE, y * TILE);
       }
     }
 

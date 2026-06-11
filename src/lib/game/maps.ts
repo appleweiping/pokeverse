@@ -13,10 +13,15 @@ export const LEGEND: Record<string, T> = {
   _: T.FLOOR, I: T.IWALL, u: T.RUG, m: T.MAT, a: T.TABLE, b: T.SHELF,
   E: T.BED, P: T.PC, c: T.COUNTER, h: T.HEALER,
   "-": T.CAVE_FLOOR, C: T.CAVE_WALL, L: T.LEDGE, S: T.SAND, F: T.GYM_FLOOR, X: T.STATUE,
-  x: T.CUT_TREE, o: T.ROCK_SMASH,
+  x: T.CUT_TREE, o: T.ROCK_SMASH, Z: T.BARRIER, z: T.SWITCH,
 };
 
-export interface WarpDef { x: number; y: number; to: string; tx: number; ty: number; dir?: Dir }
+export interface WarpDef {
+  x: number; y: number; to: string; tx: number; ty: number; dir?: Dir;
+  /** warp only works when this flag is truthy; otherwise lockedKey dialogue shows */
+  ifFlag?: string;
+  lockedKey?: string;
+}
 export interface SignDef { x: number; y: number; textKey: string }
 export interface ItemSpot { x: number; y: number; item: string; qty: number; flag: string }
 
@@ -29,6 +34,12 @@ export interface TrainerDef {
   prize: number;
   badge?: string;
   winKey?: string; // shown if player loses
+  /** battle music override key (e.g. "aurora") */
+  theme?: string;
+  /** NPC disappears from the map after losing (fleeing grunts) */
+  vanish?: boolean;
+  /** one-time item handed over after victory */
+  reward?: { item: string; qty: number };
 }
 
 export interface NpcDef {
@@ -105,6 +116,63 @@ const TRAINERS = {
     loseKey: "story.gym2_win",
     team: [{ speciesId: 90, level: 16 }, { speciesId: 121, level: 16 }, { speciesId: 130, level: 18 }],
     prize: 2400, badge: "tidal",
+  } as TrainerDef,
+  rocker1: {
+    id: "rocker1", nameKey: "story.tn.rocker1", preKey: "story.trainer_rocker1_pre",
+    loseKey: "story.trainer_rocker1_lose",
+    team: [{ speciesId: 100, level: 18 }, { speciesId: 81, level: 18 }], prize: 540,
+  } as TrainerDef,
+  picnic1: {
+    id: "picnic1", nameKey: "story.tn.picnic1", preKey: "story.trainer_picnic1_pre",
+    loseKey: "story.trainer_picnic1_lose",
+    team: [{ speciesId: 25, level: 19 }, { speciesId: 43, level: 18 }], prize: 570,
+  } as TrainerDef,
+  gym3: {
+    id: "gym3", nameKey: "story.tn.gym3", preKey: "story.gym3_pre",
+    loseKey: "story.gym3_win",
+    team: [{ speciesId: 81, level: 20 }, { speciesId: 100, level: 20 }, { speciesId: 26, level: 22 }],
+    prize: 3500, badge: "volt",
+  } as TrainerDef,
+  lass2: {
+    id: "lass2", nameKey: "story.tn.lass2", preKey: "story.trainer_lass2_pre",
+    loseKey: "story.trainer_lass2_lose",
+    team: [{ speciesId: 43, level: 20 }, { speciesId: 44, level: 22 }], prize: 660,
+  } as TrainerDef,
+  camper1: {
+    id: "camper1", nameKey: "story.tn.camper1", preKey: "story.trainer_camper1_pre",
+    loseKey: "story.trainer_camper1_lose",
+    team: [{ speciesId: 69, level: 20 }, { speciesId: 70, level: 21 }], prize: 630,
+  } as TrainerDef,
+  gym4: {
+    id: "gym4", nameKey: "story.tn.gym4", preKey: "story.gym4_pre",
+    loseKey: "story.gym4_win",
+    team: [{ speciesId: 114, level: 24 }, { speciesId: 44, level: 24 }, { speciesId: 71, level: 26 }],
+    prize: 4200, badge: "meadow",
+  } as TrainerDef,
+  aurorag1: {
+    id: "aurorag1", nameKey: "story.tn.aurora_grunt", preKey: "story.aurora_g1_pre",
+    loseKey: "story.aurora_g1_lose",
+    team: [{ speciesId: 41, level: 18 }, { speciesId: 23, level: 18 }], prize: 400,
+    theme: "aurora", vanish: true,
+  } as TrainerDef,
+  aurorag2: {
+    id: "aurorag2", nameKey: "story.tn.aurora_grunt", preKey: "story.aurora_g2_pre",
+    loseKey: "story.aurora_g2_lose",
+    team: [{ speciesId: 109, level: 19 }, { speciesId: 41, level: 19 }], prize: 440,
+    theme: "aurora", vanish: true,
+  } as TrainerDef,
+  aurorag3: {
+    id: "aurorag3", nameKey: "story.tn.aurora_grunt", preKey: "story.aurora_g3_pre",
+    loseKey: "story.aurora_g3_lose",
+    team: [{ speciesId: 23, level: 21 }, { speciesId: 109, level: 21 }], prize: 480,
+    theme: "aurora", vanish: true,
+  } as TrainerDef,
+  auroraboss1: {
+    id: "auroraboss1", nameKey: "story.tn.aurora_boss", preKey: "story.aurora_boss_pre",
+    loseKey: "story.aurora_boss_lose",
+    team: [{ speciesId: 42, level: 23 }, { speciesId: 24, level: 23 }, { speciesId: 110, level: 24 }],
+    prize: 2000, theme: "aurora",
+    reward: { item: "thunder-stone", qty: 1 },
   } as TrainerDef,
 };
 
@@ -610,7 +678,7 @@ export const MAPS: Record<string, MapDef> = {
       "T..RRRRR...,,,,...BBBBB..T",
       "T..WwDwW...,,,,...WwDwW..T",
       "T....,.....,,,,.....,....T",
-      "T,,,,,,,,,,,,,,,,,,,,,,,,T",
+      "T,,,,,,,,,,,,,,,,,,,,,,,,,",
       "T..,,......,,......,,....T",
       "T..,,..GGGGGGGG....,,....T",
       "T..,,..GGGGGGGG....,,....T",
@@ -629,6 +697,7 @@ export const MAPS: Record<string, MapDef> = {
       { x: 5, y: 4, to: "tidal-center", tx: 6, ty: 5, dir: "up" },
       { x: 19, y: 4, to: "tidal-mart", tx: 5, ty: 5, dir: "up" },
       { x: 10, y: 10, to: "gym-tidal", tx: 6, ty: 10, dir: "up" },
+      { x: 25, y: 6, to: "route-3", tx: 1, ty: 8, dir: "right" },
     ],
     signs: [{ x: 13, y: 11, textKey: "story.sign_tidal_gym" }],
     npcs: [
@@ -711,6 +780,389 @@ export const MAPS: Record<string, MapDef> = {
       { id: "gym2-leader", x: 5, y: 3, dir: "down", palette: "leader", trainer: TRAINERS.gym2 },
     ],
     items: [],
+  },
+
+  // ========================================================= ROUTE 3 (east, electric)
+  "route-3": {
+    id: "route-3",
+    nameKey: "story.sign_route3",
+    music: "route",
+    grid: [
+      "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+      "T..............................T",
+      "T..ggg....ggg.......ggg........T",
+      "T..ggg....ggg.......ggg........T",
+      "T..ggg....ggg.......ggg........T",
+      "T..............................T",
+      "T.....s........................T",
+      "T..............................T",
+      ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+      "T..............................T",
+      "T....ggg.........ggg...........T",
+      "T....ggg.........ggg...........T",
+      "T....ggg.........ggg...........T",
+      "T..f.......................f...T",
+      "T..............................T",
+      "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+    ],
+    warps: [
+      { x: 0, y: 8, to: "tidal-town", tx: 24, ty: 6, dir: "left" },
+      { x: 31, y: 8, to: "thunder-city", tx: 1, ty: 7, dir: "right" },
+    ],
+    signs: [{ x: 6, y: 6, textKey: "story.sign_route3" }],
+    npcs: [
+      { id: "tr-rocker1", x: 12, y: 7, dir: "down", palette: "bugcatcher", trainer: TRAINERS.rocker1 },
+      { id: "tr-picnic1", x: 22, y: 9, dir: "up", palette: "girl", trainer: TRAINERS.picnic1 },
+      {
+        id: "tr-aurorag1", x: 18, y: 8, dir: "left", palette: "rival",
+        trainer: TRAINERS.aurorag1, ifNotFlag: "tr:aurorag1",
+      },
+      { id: "r3-boy", x: 8, y: 9, dir: "up", palette: "boy", dialogKeys: ["story.npc_route3a"] },
+    ],
+    items: [
+      { x: 4, y: 13, item: "super-potion", qty: 2, flag: "item:r3-sp" },
+      { x: 28, y: 2, item: "paralyze-heal", qty: 2, flag: "item:r3-ph" },
+    ],
+    encounters: {
+      rate: 0.13,
+      table: [
+        [25, 20, 16, 19], [81, 25, 16, 19], [100, 20, 16, 19], [56, 15, 16, 18], [19, 20, 16, 18],
+      ],
+    },
+  },
+
+  // ========================================================= THUNDER CITY
+  "thunder-city": {
+    id: "thunder-city",
+    nameKey: "story.sign_thunder",
+    music: "thunder",
+    grid: [
+      "TTTTTTTTTTTT,,TTTTTTTTTTTT",
+      "T........................T",
+      "T..GGGGGGG......RRRRR....T",
+      "T..GGGGGGG......RRRRR....T",
+      "T..GGGGGGG......RRRRR....T",
+      "T..WwwDwwW......WwDwW....T",
+      "T.....,...........,......T",
+      ",,,,,,,,,,,,,,,,,,,,,,,,,T",
+      "T..BBBBB......BBBBB......T",
+      "T..BBBBB......BBBBB......T",
+      "T..WwDwW......WwDwW......T",
+      "T....,..........,........T",
+      "T,,,,,,,,,,,,,,,,,,,,,,,,T",
+      "T........s...............T",
+      "T..ff..............ff....T",
+      "T........................T",
+      "T........CCCCC...........T",
+      "T........CC-CC...........T",
+      "T........................T",
+      "TTTTTTTTTTTTTTTTTTTTTTTTTT",
+    ],
+    warps: [
+      { x: 12, y: 0, to: "route-4", tx: 8, ty: 24, dir: "up" },
+      { x: 13, y: 0, to: "route-4", tx: 9, ty: 24, dir: "up" },
+      { x: 0, y: 7, to: "route-3", tx: 30, ty: 8, dir: "left" },
+      { x: 6, y: 5, to: "gym-thunder", tx: 6, ty: 9, dir: "up" },
+      { x: 18, y: 5, to: "thunder-center", tx: 6, ty: 4, dir: "up" },
+      { x: 5, y: 10, to: "thunder-mart", tx: 5, ty: 4, dir: "up" },
+      {
+        x: 11, y: 17, to: "aurora-hideout", tx: 7, ty: 9, dir: "up",
+        ifFlag: "tr:aurorag2", lockedKey: "story.hideout_locked",
+      },
+    ],
+    signs: [{ x: 9, y: 13, textKey: "story.sign_thunder" }],
+    npcs: [
+      { id: "th-boy", x: 16, y: 6, dir: "down", palette: "boy", dialogKeys: ["story.npc_thunder1"] },
+      { id: "th-old", x: 7, y: 14, dir: "right", palette: "oldman", dialogKeys: ["story.npc_thunder2"] },
+    ],
+    items: [],
+  },
+
+  // ========================================================= THUNDER CENTER / MART
+  "thunder-center": {
+    id: "thunder-center",
+    nameKey: "story.sign_thunder",
+    music: "center",
+    indoor: true,
+    grid: [
+      "IIIIIIIIIIII",
+      "IP________hI",
+      "I___cccc___I",
+      "I__________I",
+      "I__________I",
+      "I_____m____I",
+      "IIIIIIIIIIII",
+    ],
+    warps: [{ x: 6, y: 5, to: "thunder-city", tx: 18, ty: 6, dir: "down" }],
+    signs: [],
+    npcs: [{ id: "nurse3", x: 5, y: 1, dir: "down", palette: "nurse", script: "nurse" }],
+    items: [],
+  },
+  "thunder-mart": {
+    id: "thunder-mart",
+    nameKey: "story.sign_thunder",
+    music: "center",
+    indoor: true,
+    grid: [
+      "IIIIIIIIII",
+      "Ibbb_____I",
+      "I________I",
+      "I__cc____I",
+      "I________I",
+      "I____m___I",
+      "IIIIIIIIII",
+    ],
+    warps: [{ x: 5, y: 5, to: "thunder-city", tx: 5, ty: 11, dir: "down" }],
+    signs: [],
+    npcs: [{ id: "clerk3", x: 3, y: 2, dir: "down", palette: "clerk", script: "mart" }],
+    items: [],
+  },
+
+  // ========================================================= THUNDER GYM (barrier puzzle)
+  "gym-thunder": {
+    id: "gym-thunder",
+    nameKey: "story.sign_gym3",
+    music: "gym",
+    indoor: true,
+    grid: [
+      "IIIIIIIIIIII",
+      "IFFFFFFFFFFI",
+      "IZZZZZZZZZZI",
+      "IFFFFFFFFFFI",
+      "IFFFFFFFFFFI",
+      "IZZZZZZZZZZI",
+      "IFFFFFFFFFFI",
+      "IFFFFzFFFFFI",
+      "IFFFFFFFFFFI",
+      "IFFFFFFFFFFI",
+      "IFFFFFmFFFFI",
+      "IIIIIIIIIIII",
+    ],
+    warps: [{ x: 6, y: 10, to: "thunder-city", tx: 6, ty: 6, dir: "down" }],
+    signs: [],
+    npcs: [
+      { id: "gym3-leader", x: 5, y: 1, dir: "down", palette: "leader", trainer: TRAINERS.gym3 },
+      {
+        id: "gym3-rocker", x: 5, y: 4, dir: "down", palette: "bugcatcher",
+        trainer: {
+          id: "gym3aide", nameKey: "story.tn.rocker1", preKey: "story.trainer_rocker1_pre",
+          loseKey: "story.trainer_rocker1_lose",
+          team: [{ speciesId: 100, level: 19 }, { speciesId: 81, level: 20 }], prize: 600,
+        },
+      },
+    ],
+    items: [],
+  },
+
+  // ========================================================= ROUTE 4 (north, flowers)
+  "route-4": {
+    id: "route-4",
+    nameKey: "story.sign_route4",
+    music: "route",
+    grid: [
+      "TTTTTTTT,,TTTTTTTT",
+      "T......,,,,......T",
+      "T..ff..,,,,..ff..T",
+      "T..ff..,,,,..ff..T",
+      "T......,,,,......T",
+      "T.ggg..,,,,..ggg.T",
+      "T.ggg..,,,,..ggg.T",
+      "T.ggg..,,,,..ggg.T",
+      "T......,,,,......T",
+      "T..,,,,,,,,......T",
+      "T..,,........s...T",
+      "T..,,..ggggg.....T",
+      "T..,,..ggggg.....T",
+      "T..,,..ggggg.....T",
+      "T..,,............T",
+      "T..,,,,,,,,......T",
+      "T......,,,,......T",
+      "T..ff..,,,,..ff..T",
+      "T..ff..,,,,..ff..T",
+      "T......,,,,......T",
+      "T.ggg..,,,,..ggg.T",
+      "T.ggg..,,,,..ggg.T",
+      "T......,,,,......T",
+      "T......,,,,......T",
+      "T......,,,,......T",
+      "TTTTTTTT,,TTTTTTTT",
+    ],
+    warps: [
+      { x: 8, y: 25, to: "thunder-city", tx: 12, ty: 1, dir: "down" },
+      { x: 9, y: 25, to: "thunder-city", tx: 13, ty: 1, dir: "down" },
+      { x: 8, y: 0, to: "meadow-town", tx: 10, ty: 14, dir: "up" },
+      { x: 9, y: 0, to: "meadow-town", tx: 11, ty: 14, dir: "up" },
+    ],
+    signs: [{ x: 13, y: 10, textKey: "story.sign_route4" }],
+    npcs: [
+      { id: "tr-lass2", x: 13, y: 12, dir: "left", palette: "lass", trainer: TRAINERS.lass2 },
+      { id: "tr-camper1", x: 5, y: 19, dir: "right", palette: "boy", trainer: TRAINERS.camper1 },
+      {
+        id: "tr-aurorag2", x: 4, y: 12, dir: "down", palette: "rival",
+        trainer: TRAINERS.aurorag2, ifNotFlag: "tr:aurorag2",
+      },
+      { id: "r4-girl", x: 14, y: 17, dir: "left", palette: "girl", dialogKeys: ["story.npc_route4a"] },
+    ],
+    items: [
+      { x: 14, y: 2, item: "hyper-potion", qty: 1, flag: "item:r4-hp" },
+      { x: 2, y: 23, item: "lum-berry", qty: 2, flag: "item:r4-lum" },
+    ],
+    encounters: {
+      rate: 0.14,
+      table: [
+        [43, 22, 18, 21], [69, 22, 18, 21], [191, 16, 18, 20], [187, 15, 18, 20],
+        [25, 10, 18, 21], [123, 5, 21, 21], [44, 10, 20, 22],
+      ],
+    },
+  },
+
+  // ========================================================= MEADOW TOWN
+  "meadow-town": {
+    id: "meadow-town",
+    nameKey: "story.sign_meadow",
+    music: "town",
+    grid: [
+      "TTTTTTTTTTTTTTTTTTTTTT",
+      "T....................T",
+      "T..GGGGG....RRRRR....T",
+      "T..GGGGG....RRRRR....T",
+      "T..WwDwW....WwDwW....T",
+      "T....,.........,.....T",
+      "T,,,,,,,,,,,,,,,,,,,,T",
+      "T..BBBBB....BBBBB....T",
+      "T..BBBBB....BBBBB....T",
+      "T..WwDwW....WwDwW....T",
+      "T....,.........,.....T",
+      "T,,,,,,,,,,,,,,,,,,,,T",
+      "T...s................T",
+      "T..ff............ff..T",
+      "T.........,,.........T",
+      "TTTTTTTTTT,,TTTTTTTTTT",
+    ],
+    warps: [
+      { x: 10, y: 15, to: "route-4", tx: 8, ty: 1, dir: "down" },
+      { x: 11, y: 15, to: "route-4", tx: 9, ty: 1, dir: "down" },
+      { x: 5, y: 4, to: "gym-meadow", tx: 6, ty: 9, dir: "up" },
+      { x: 14, y: 4, to: "meadow-center", tx: 6, ty: 4, dir: "up" },
+      { x: 5, y: 9, to: "meadow-mart", tx: 5, ty: 4, dir: "up" },
+    ],
+    signs: [{ x: 4, y: 12, textKey: "story.sign_meadow" }],
+    npcs: [
+      { id: "md-girl", x: 9, y: 5, dir: "down", palette: "girl", dialogKeys: ["story.npc_meadow1"] },
+      { id: "md-old", x: 17, y: 12, dir: "left", palette: "oldman", dialogKeys: ["story.npc_meadow2"] },
+    ],
+    items: [],
+  },
+  "meadow-center": {
+    id: "meadow-center",
+    nameKey: "story.sign_meadow",
+    music: "center",
+    indoor: true,
+    grid: [
+      "IIIIIIIIIIII",
+      "IP________hI",
+      "I___cccc___I",
+      "I__________I",
+      "I__________I",
+      "I_____m____I",
+      "IIIIIIIIIIII",
+    ],
+    warps: [{ x: 6, y: 5, to: "meadow-town", tx: 14, ty: 5, dir: "down" }],
+    signs: [],
+    npcs: [{ id: "nurse4", x: 5, y: 1, dir: "down", palette: "nurse", script: "nurse" }],
+    items: [],
+  },
+  "meadow-mart": {
+    id: "meadow-mart",
+    nameKey: "story.sign_meadow",
+    music: "center",
+    indoor: true,
+    grid: [
+      "IIIIIIIIII",
+      "Ibbb_____I",
+      "I________I",
+      "I__cc____I",
+      "I________I",
+      "I____m___I",
+      "IIIIIIIIII",
+    ],
+    warps: [{ x: 5, y: 5, to: "meadow-town", tx: 5, ty: 10, dir: "down" }],
+    signs: [],
+    npcs: [{ id: "clerk4", x: 3, y: 2, dir: "down", palette: "clerk", script: "mart" }],
+    items: [],
+  },
+
+  // ========================================================= MEADOW GYM (hedge maze)
+  "gym-meadow": {
+    id: "gym-meadow",
+    nameKey: "story.sign_gym4",
+    music: "gym",
+    indoor: true,
+    grid: [
+      "IIIIIIIIIIII",
+      "IFFFFFFFFFFI",
+      "IxxxxxxxxxxI",
+      "IFFFFFFFFFFI",
+      "IggggFFggggI",
+      "IFFFFFFFFFFI",
+      "IxxxxxxxxxxI",
+      "IFFFFFFFFFFI",
+      "IggFFFFFFggI",
+      "IFFFFFmFFFFI",
+      "IIIIIIIIIIII",
+    ],
+    warps: [{ x: 6, y: 9, to: "meadow-town", tx: 5, ty: 5, dir: "down" }],
+    signs: [],
+    npcs: [
+      { id: "gym4-leader", x: 5, y: 1, dir: "down", palette: "leader", trainer: TRAINERS.gym4 },
+      {
+        id: "gym4-camper", x: 5, y: 5, dir: "down", palette: "boy",
+        trainer: {
+          id: "gym4aide", nameKey: "story.tn.camper1", preKey: "story.trainer_camper1_pre",
+          loseKey: "story.trainer_camper1_lose",
+          team: [{ speciesId: 70, level: 23 }, { speciesId: 102, level: 23 }], prize: 690,
+        },
+      },
+    ],
+    items: [],
+  },
+
+  // ========================================================= AURORA HIDEOUT
+  "aurora-hideout": {
+    id: "aurora-hideout",
+    nameKey: "story.sign_hideout",
+    music: "cave",
+    indoor: true,
+    grid: [
+      "CCCCCCCCCCCCCCCC",
+      "C--------------C",
+      "C--CC------CC--C",
+      "C--------------C",
+      "C----CCCC------C",
+      "C--------------C",
+      "C--CC------CC--C",
+      "C--------------C",
+      "C------CC------C",
+      "C--------------C",
+      "C--------------C",
+      "CCCCCCC--CCCCCCC",
+    ],
+    warps: [
+      { x: 7, y: 11, to: "thunder-city", tx: 11, ty: 18, dir: "down" },
+      { x: 8, y: 11, to: "thunder-city", tx: 11, ty: 18, dir: "down" },
+    ],
+    signs: [],
+    npcs: [
+      {
+        id: "tr-aurorag3", x: 5, y: 8, dir: "right", palette: "rival",
+        trainer: TRAINERS.aurorag3, ifNotFlag: "tr:aurorag3",
+      },
+      { id: "aurora-boss", x: 7, y: 2, dir: "down", palette: "oldman", trainer: TRAINERS.auroraboss1 },
+    ],
+    items: [
+      { x: 13, y: 2, item: "ultra-ball", qty: 2, flag: "item:ah-ub" },
+      { x: 2, y: 7, item: "revive", qty: 1, flag: "item:ah-rv" },
+    ],
   },
 };
 

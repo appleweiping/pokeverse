@@ -201,8 +201,8 @@ export function Stats() {
     [937, t("site.stats.moves")],
     [18, t("site.stats.types")],
     [5, t("site.stats.langs")],
-    [16, t("site.stats.maps")],
-    [10, t("site.stats.tracks")],
+    [24, t("site.stats.maps")],
+    [12, t("site.stats.tracks")],
   ];
   return (
     <section ref={ref} className={`mx-auto max-w-6xl px-4 py-16 ${vis ? "animate-risefade" : "opacity-0"}`}>

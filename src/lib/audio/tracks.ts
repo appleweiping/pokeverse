@@ -361,6 +361,77 @@ C3:4 G2:4 C3:8`,
     ],
   },
 
+  // ======================================================== THUNDER CITY (D major, buzzing energy)
+  thunder: {
+    bpm: 126,
+    channels: [
+      {
+        wave: "square", vol: 0.19,
+        notes: `
+D5:2 F#5:2 A5:4 F#5:2 D5:2 A5:4
+E5:2 G5:2 B5:4 G5:2 E5:2 B4:4
+D5:2 F#5:2 A5:4 B5:2 A5:2 F#5:4
+G5:4 F#5:4 E5:4 D5:4`,
+      },
+      {
+        wave: "square", vol: 0.09,
+        notes: `
+D4:2 F#4:2 A4:2 F#4:2 D4:2 F#4:2 A4:2 F#4:2
+E4:2 G4:2 B4:2 G4:2 E4:2 G4:2 B4:2 G4:2
+D4:2 F#4:2 A4:2 F#4:2 D4:2 F#4:2 A4:2 F#4:2
+G4:2 B4:2 D5:2 B4:2 A4:2 C#5:2 E5:2 C#5:2`,
+      },
+      {
+        wave: "triangle", vol: 0.5,
+        notes: `
+D3:4 A2:4 D3:4 A2:4
+E3:4 B2:4 E3:4 B2:4
+D3:4 A2:4 D3:4 A2:4
+G2:4 G2:4 A2:4 A2:4`,
+      },
+      {
+        wave: "noise", vol: 0.32,
+        notes: `K:4 H:4 S:4 H:4 K:4 H:4 S:4 H:4 K:4 H:4 S:4 H:4 K:4 S:4 K:4 S:4`,
+      },
+    ],
+  },
+
+  // ======================================================== TEAM AURORA (B minor, menacing)
+  aurora: {
+    bpm: 156,
+    channels: [
+      {
+        wave: "square", vol: 0.2,
+        notes: `
+B4:2 B4:2 D5:2 B4:2 F5:2 E5:2 D5:2 C#5:2
+B4:2 B4:2 D5:2 F#5:2 G5:4 F#5:2 E5:2
+A#4:2 A#4:2 C#5:2 A#4:2 E5:2 D5:2 C#5:2 B4:2
+B4:4 C#5:4 D5:4 A#4:4`,
+      },
+      {
+        wave: "square", vol: 0.08,
+        notes: `
+B3:2 D4:2 F#4:2 D4:2 B3:2 D4:2 F#4:2 D4:2
+B3:2 D4:2 G4:2 D4:2 B3:2 D4:2 G4:2 D4:2
+A#3:2 C#4:2 F#4:2 C#4:2 A#3:2 C#4:2 F#4:2 C#4:2
+B3:2 D4:2 F#4:2 D4:2 A#3:2 C#4:2 F#4:2 C#4:2`,
+      },
+      {
+        wave: "triangle", vol: 0.55,
+        notes: `
+B2:2 B2:2 B2:2 B2:2 B2:2 B2:2 B2:2 B2:2
+G2:2 G2:2 G2:2 G2:2 G2:2 G2:2 G2:2 G2:2
+E2:2 E2:2 E2:2 E2:2 E2:2 E2:2 E2:2 E2:2
+F#2:2 F#2:2 F#2:2 F#2:2 F#2:2 F#2:2 F#2:2 F#2:2`,
+      },
+      {
+        wave: "noise", vol: 0.38,
+        notes: `K:2 K:2 S:2 H:2 K:2 H:2 S:2 H:2 K:2 K:2 S:2 H:2 K:2 H:2 S:2 H:2
+K:2 K:2 S:2 H:2 K:2 H:2 S:2 H:2 K:2 K:2 S:2 H:2 K:2 S:2 S:2 S:2`,
+      },
+    ],
+  },
+
   // ======================================================== EVOLUTION (rising)
   evolution: {
     bpm: 132,

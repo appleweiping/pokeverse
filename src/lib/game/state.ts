@@ -296,7 +296,7 @@ export const useGame = create<GameStore>((set, get) => ({
     }
     const info: TrainerInfo = { id: def.id, nameKey: def.nameKey, prize: def.prize, badge: def.badge };
     const session = await BattleSession.create("trainer", s.party, team, { trainer: info });
-    audio.playMusic(def.badge ? "gym" : "battle_trainer");
+    audio.playMusic(def.theme ?? (def.badge ? "gym" : "battle_trainer"));
     set({ phase: "battle", battleSession: session, battleTrainer: info, menuOpen: false, submenu: null });
   },
 

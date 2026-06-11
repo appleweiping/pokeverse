@@ -16,7 +16,7 @@ export enum T {
   WALL, ROOF_RED, ROOF_BLUE, ROOF_GRAY, DOOR, WINDOW,
   FLOOR, IWALL, RUG, MAT, TABLE, SHELF, BED, PC, COUNTER, HEALER,
   CAVE_FLOOR, CAVE_WALL, LEDGE, SAND, GYM_FLOOR, STATUE,
-  CUT_TREE, ROCK_SMASH,
+  CUT_TREE, ROCK_SMASH, BARRIER, SWITCH, BARRIER_OFF,
   COUNT,
 }
 
@@ -24,7 +24,7 @@ export const SOLID = new Set<T>([
   T.TREE, T.TREE_DARK, T.WATER, T.ROCK, T.FENCE, T.SIGN,
   T.WALL, T.ROOF_RED, T.ROOF_BLUE, T.ROOF_GRAY, T.WINDOW,
   T.IWALL, T.TABLE, T.SHELF, T.BED, T.PC, T.COUNTER, T.HEALER,
-  T.CAVE_WALL, T.STATUE, T.CUT_TREE, T.ROCK_SMASH,
+  T.CAVE_WALL, T.STATUE, T.CUT_TREE, T.ROCK_SMASH, T.BARRIER,
 ]);
 
 /** Tiles that can trigger a wild encounter when stepped on. */
@@ -525,6 +525,49 @@ function paintTile(c: Ctx, t: T, frame: number, seed: number) {
       // crack
       c.fillStyle = P.outline;
       px(c, 7, 4, 1, 3); px(c, 8, 7, 1, 2); px(c, 7, 9, 1, 3);
+      break;
+    }
+    case T.BARRIER: {
+      // electric barrier between two emitter posts (animated arc)
+      c.fillStyle = P.gym;
+      px(c, 0, 0, 16, 16);
+      c.fillStyle = P.gymDk; px(c, 0, 0, 8, 8); px(c, 8, 8, 8, 8);
+      // posts
+      c.fillStyle = P.outline; px(c, 1, 2, 4, 12); px(c, 11, 2, 4, 12);
+      c.fillStyle = P.roofGray; px(c, 2, 3, 2, 10); px(c, 12, 3, 2, 10);
+      c.fillStyle = P.roofGrayLt; px(c, 2, 3, 1, 10); px(c, 12, 3, 1, 10);
+      // emitter tips
+      c.fillStyle = "#f8d048"; px(c, 2, 2, 2, 1); px(c, 12, 2, 2, 1);
+      // arcing bolts
+      const j = frame === 0 ? 0 : 1;
+      c.fillStyle = "#f8e858";
+      px(c, 5, 4 + j, 2, 1); px(c, 7, 5 - j + 1, 2, 1); px(c, 9, 4 + j, 2, 1);
+      px(c, 5, 9 - j, 2, 1); px(c, 7, 10 + j - 1, 2, 1); px(c, 9, 9 - j, 2, 1);
+      c.fillStyle = "#fcf8c0";
+      px(c, 6, 5 + j, 1, 1); px(c, 9, 6 - j, 1, 1); px(c, 7, 9, 1, 1);
+      break;
+    }
+    case T.BARRIER_OFF: {
+      // powered-down barrier — posts only, walkable between
+      c.fillStyle = P.gym;
+      px(c, 0, 0, 16, 16);
+      c.fillStyle = P.gymDk; px(c, 0, 0, 8, 8); px(c, 8, 8, 8, 8);
+      c.fillStyle = P.outline; px(c, 1, 4, 3, 10); px(c, 12, 4, 3, 10);
+      c.fillStyle = P.roofGrayDk; px(c, 2, 5, 1, 8); px(c, 13, 5, 1, 8);
+      break;
+    }
+    case T.SWITCH: {
+      // round floor switch
+      c.fillStyle = P.gym;
+      px(c, 0, 0, 16, 16);
+      c.fillStyle = P.gymDk; px(c, 0, 0, 8, 8); px(c, 8, 8, 8, 8);
+      c.fillStyle = P.outline; px(c, 3, 3, 10, 10);
+      const pressed = frame === 1;
+      c.fillStyle = pressed ? "#d04848" : "#e85048";
+      px(c, 4, 4, 8, 8);
+      c.fillStyle = pressed ? "#9c2c34" : "#f07868";
+      px(c, 5, 5, 6, 2);
+      c.fillStyle = "#f8d048"; px(c, 7, 7, 2, 2);
       break;
     }
   }
