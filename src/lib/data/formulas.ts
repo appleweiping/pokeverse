@@ -43,23 +43,45 @@ export const NATURES: Nature[] = [
 // Stats
 // ---------------------------------------------------------------------------
 
-/** Compute the 6 actual stats from base stats + IVs + level + nature. */
+/** Compute the 6 actual stats from base stats + IVs + EVs + level + nature. */
 export function calcStats(
   base: number[],
   ivs: number[],
   level: number,
-  natureIdx: number
+  natureIdx: number,
+  evs?: number[]
 ): [number, number, number, number, number, number] {
   const nat = NATURES[natureIdx] ?? NATURES[0];
+  const ev = (i: number) => Math.floor((evs?.[i] ?? 0) / 4);
   const out = [0, 0, 0, 0, 0, 0] as [number, number, number, number, number, number];
-  out[0] = Math.floor(((2 * base[0] + ivs[0]) * level) / 100) + level + 10;
+  out[0] = Math.floor(((2 * base[0] + ivs[0] + ev(0)) * level) / 100) + level + 10;
   for (let i = 1; i < 6; i++) {
-    let v = Math.floor(((2 * base[i] + ivs[i]) * level) / 100) + 5;
+    let v = Math.floor(((2 * base[i] + ivs[i] + ev(i)) * level) / 100) + 5;
     if (nat.up === i) v = Math.floor(v * 1.1);
     else if (nat.down === i) v = Math.floor(v * 0.9);
     out[i] = v;
   }
   return out;
+}
+
+export const EV_MAX_STAT = 252;
+export const EV_MAX_TOTAL = 510;
+
+/** Apply an EV yield to a mon's spread, respecting per-stat and total caps. */
+export function applyEvYield(
+  evs: [number, number, number, number, number, number],
+  yield_: [number, number][]
+): boolean {
+  let changed = false;
+  for (const [idx, amount] of yield_) {
+    for (let n = 0; n < amount; n++) {
+      const total = evs.reduce((a, b) => a + b, 0);
+      if (total >= EV_MAX_TOTAL || evs[idx] >= EV_MAX_STAT) break;
+      evs[idx]++;
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 /** Stat stage multiplier for atk/def/spa/spd/spe (-6..+6). */

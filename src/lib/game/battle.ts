@@ -1,6 +1,6 @@
 import type { DexEntry, MajorStatus, Mon, MoveData, StatStageKey, TypeName, Weather } from "../types";
 import { effectiveness } from "../data/typechart";
-import { accStageMult, attemptCapture, expGain, stageMult, statusCatchMult } from "../data/formulas";
+import { accStageMult, applyEvYield, attemptCapture, expGain, stageMult, statusCatchMult } from "../data/formulas";
 import { getMoveMap, getSpecies } from "../data/dex";
 import { applyExp, statsOf } from "./factory";
 import { ITEMS } from "./items";
@@ -12,7 +12,7 @@ import { ABILITIES, type AbilityDef } from "../data/abilities";
 
 export type BattleEvent =
   | { t: "msg"; key: string; params?: Record<string, string | number> }
-  | { t: "anim"; kind: "attack" | "hit" | "hit_super" | "hit_weak" | "faint" | "ball_throw" | "ball_shake" | "ball_open" | "catch" | "heal" | "stat_up" | "stat_down"; side: Side }
+  | { t: "anim"; kind: "attack" | "hit" | "hit_super" | "hit_weak" | "faint" | "ball_throw" | "ball_shake" | "ball_open" | "catch" | "heal" | "stat_up" | "stat_down"; side: Side; mt?: TypeName }
   | { t: "hp"; side: Side; hp: number; maxHp: number }
   | { t: "status"; side: Side; status: MajorStatus | null }
   | { t: "exp"; exp: number; toNext: number; pct: number }
@@ -71,6 +71,16 @@ interface Battler {
   protectedT: boolean;
   /** consecutive Protect uses (success falls off) */
   protectStreak: number;
+  /** Substitute HP (0 = none) */
+  sub: number;
+  /** Bind/Wrap turns remaining */
+  trapTurns: number;
+  /** Focus Energy active (crit chance 1/2) */
+  focused: boolean;
+  /** two-turn move being charged (Fly/Dig/Solar Beam) */
+  charging: { moveId: number; idx: number } | null;
+  /** airborne/underground during Fly/Dig charge turn */
+  semiInvuln: boolean;
 }
 
 function abilityOf(mon: Mon): AbilityDef | null {
@@ -110,6 +120,11 @@ async function makeBattler(mon: Mon): Promise<Battler> {
     berryUsed: false,
     protectedT: false,
     protectStreak: 0,
+    sub: 0,
+    trapTurns: 0,
+    focused: false,
+    charging: null,
+    semiInvuln: false,
   };
 }
 
@@ -260,8 +275,8 @@ export class BattleSession {
     // ---- both choose moves: order by priority then speed
     const pMove = this.resolveMoveChoice(this.player, action.index);
     const eMove = this.pickEnemyMove();
-    const pSpe = this.player.stats[5] * stageMult(this.player.stages.spe) * (this.player.mon.status === "par" ? 0.5 : 1);
-    const eSpe = this.enemy.stats[5] * stageMult(this.enemy.stages.spe) * (this.enemy.mon.status === "par" ? 0.5 : 1);
+    const pSpe = this.effSpeed(this.player);
+    const eSpe = this.effSpeed(this.enemy);
     const pPrio = pMove.move.pr;
     const ePrio = eMove.move.pr;
     const playerFirst =
@@ -305,8 +320,8 @@ export class BattleSession {
     if (this.over) return ev;
     const pMove = this.resolveMoveChoice(this.player, playerMoveIdx);
     const eMove = this.resolveEnemyMoveChoice(enemyMoveIdx);
-    const pSpe = this.player.stats[5] * stageMult(this.player.stages.spe) * (this.player.mon.status === "par" ? 0.5 : 1);
-    const eSpe = this.enemy.stats[5] * stageMult(this.enemy.stages.spe) * (this.enemy.mon.status === "par" ? 0.5 : 1);
+    const pSpe = this.effSpeed(this.player);
+    const eSpe = this.effSpeed(this.enemy);
     const playerFirst =
       pMove.move.pr !== eMove.move.pr ? pMove.move.pr > eMove.move.pr
       : pSpe !== eSpe ? pSpe > eSpe : this.rng() < 0.5;
@@ -414,9 +429,29 @@ export class BattleSession {
     return { name: b.mon.nickname ?? `%SPECIES_${b.mon.speciesId}%` };
   }
 
+  /** Effective speed incl. stages, paralysis and abilities. */
+  private effSpeed(b: Battler): number {
+    let spe = b.stats[5] * stageMult(b.stages.spe);
+    if (b.ability?.quickFeet && b.mon.status) spe *= 1.5;
+    else if (b.mon.status === "par") spe *= 0.5;
+    if (b.ability?.weatherSpeed && b.ability.weatherSpeed === this.weather) spe *= 2;
+    return spe;
+  }
+
   private async executeMove(att: Battler, def: Battler, move: MoveData, moveIdx: number, ev: BattleEvent[]) {
     const isPlayer = att === this.player;
     const who = this.nameParam(att);
+
+    // --- releasing a charged two-turn move overrides the chosen action
+    let releasing = false;
+    if (att.charging) {
+      const c = att.charging;
+      move = this.moveMap.get(c.moveId) ?? move;
+      moveIdx = -2; // PP was paid on the charge turn
+      att.charging = null;
+      att.semiInvuln = false;
+      releasing = true;
+    }
 
     // --- pre-action status gates
     if (att.flinched) {
@@ -480,8 +515,24 @@ export class BattleSession {
     }
     ev.push({ t: "anim", kind: "attack", side: isPlayer ? "player" : "enemy" });
 
+    // --- two-turn charge moves (Fly / Dig / Solar Beam)
+    const CHARGE_MSG: Record<number, string> = { 19: "charge_fly", 91: "charge_dig", 76: "charge_solar" };
+    if (!releasing && CHARGE_MSG[move.id] && move.c !== 2) {
+      // Solar Beam fires immediately in harsh sunlight
+      if (!(move.id === 76 && this.weather === "sun")) {
+        att.charging = { moveId: move.id, idx: moveIdx };
+        if (move.id !== 76) att.semiInvuln = true;
+        ev.push({ t: "msg", key: `game.battle.${CHARGE_MSG[move.id]}`, params: who });
+        return;
+      }
+    }
+
     // --- accuracy (No Guard on either side bypasses the check)
     const noGuard = att.ability?.noGuard || def.ability?.noGuard;
+    if (def.semiInvuln && !noGuard && move.c !== 2) {
+      ev.push({ t: "msg", key: "game.battle.missed" });
+      return;
+    }
     if (move.a > 0 && !noGuard) {
       const acc = (move.a / 100) * accStageMult(att.stages.acc) / accStageMult(def.stages.eva);
       if (this.rng() > acc) {
@@ -504,6 +555,26 @@ export class BattleSession {
           att.protectStreak = 0;
           ev.push({ t: "msg", key: "game.battle.protect_fail", params: who });
         }
+        return;
+      }
+      // ------- Substitute
+      if (move.id === 164) {
+        const cost = Math.floor(att.stats[0] / 4);
+        if (att.sub > 0 || att.mon.curHP <= cost) {
+          ev.push({ t: "msg", key: "game.battle.protect_fail" });
+          return;
+        }
+        att.mon.curHP -= cost;
+        att.sub = cost;
+        ev.push({ t: "msg", key: "game.battle.sub_make", params: who });
+        ev.push({ t: "hp", side: isPlayer ? "player" : "enemy", hp: att.mon.curHP, maxHp: att.stats[0] });
+        return;
+      }
+      // ------- Focus Energy
+      if (move.id === 116) {
+        if (att.focused) { ev.push({ t: "msg", key: "game.battle.protect_fail" }); return; }
+        att.focused = true;
+        ev.push({ t: "msg", key: "game.battle.focus", params: who });
         return;
       }
       // ------- Rest
@@ -534,10 +605,16 @@ export class BattleSession {
         }
         return;
       }
-      // ------- Protect blocks status moves aimed at the foe
-      if (def.protectedT && move.m?.tgt !== "user") {
-        ev.push({ t: "msg", key: "game.battle.protected", params: this.nameParam(def) });
-        return;
+      // ------- Protect / Substitute block status moves aimed at the foe
+      if (move.m?.tgt !== "user") {
+        if (def.protectedT) {
+          ev.push({ t: "msg", key: "game.battle.protected", params: this.nameParam(def) });
+          return;
+        }
+        if (def.sub > 0) {
+          ev.push({ t: "msg", key: "game.battle.sub_block", params: this.nameParam(def) });
+          return;
+        }
       }
       // ------- status move
       this.applyMoveEffects(att, def, move, ev, 0, true);
@@ -586,7 +663,9 @@ export class BattleSession {
     }
 
     // ------- damaging move
-    const eff = effectiveness(move.t, def.species.t);
+    let eff = effectiveness(move.t, def.species.t);
+    // Scrappy lets Normal/Fighting moves hit Ghost
+    if (eff === 0 && att.ability?.scrappy && (move.t === "normal" || move.t === "fighting")) eff = 1;
     if (eff === 0) {
       ev.push({ t: "msg", key: "game.battle.immune" });
       return;
@@ -601,17 +680,29 @@ export class BattleSession {
     }
     let total = 0;
     let lastCrit = false;
-    for (let h = 0; h < hits && def.mon.curHP > 0; h++) {
+    let subBroke = false;
+    let subTook = false;
+    for (let h = 0; h < hits && def.mon.curHP > 0 && !subBroke; h++) {
       const { dmg, crit } = this.computeDamage(att, def, { move });
       total += dmg;
       lastCrit = crit;
-      this.dealDamage(def, dmg, ev);
+      if (def.sub > 0) {
+        // the substitute soaks the hit
+        subTook = true;
+        def.sub -= dmg;
+        if (def.sub <= 0) { def.sub = 0; subBroke = true; }
+      } else {
+        this.dealDamage(def, dmg, ev);
+      }
     }
     ev.push({
       t: "anim",
       kind: eff > 1 ? "hit_super" : eff < 1 ? "hit_weak" : "hit",
       side: defSide,
+      mt: move.t,
     });
+    if (subTook) ev.push({ t: "msg", key: "game.battle.sub_hit", params: this.nameParam(def) });
+    if (subBroke) ev.push({ t: "msg", key: "game.battle.sub_break", params: this.nameParam(def) });
     if (hits > 1) ev.push({ t: "msg", key: "game.battle.hits_n", params: { n: hits } });
     if (lastCrit) ev.push({ t: "msg", key: "game.battle.crit" });
     if (eff > 1) ev.push({ t: "msg", key: "game.battle.super" });
@@ -637,8 +728,25 @@ export class BattleSession {
     }
 
     if (def.mon.curHP > 0) {
-      this.applyMoveEffects(att, def, move, ev, total, false);
+      // a substitute blocks the move's secondary effects on the target
+      if (!subTook) this.applyMoveEffects(att, def, move, ev, total, false);
       this.checkBerry(def, ev); // pinch berry after taking the hit
+
+      // contact retaliation (physical moves touch the defender)
+      if (move.c === 0 && total > 0 && !subTook && att.mon.curHP > 0) {
+        const dab = def.ability;
+        if (dab?.contactStatus && this.rng() * 100 < dab.contactStatus.chance) {
+          ev.push({ t: "ability", side: defSide, ability: dab.slug });
+          this.applyAilment(att, { par: "paralysis", psn: "poison", brn: "burn" }[dab.contactStatus.status], ev);
+        }
+        if (dab?.contactDamage && !att.ability?.magicGuard) {
+          const chip = Math.max(1, Math.floor(att.stats[0] / 8));
+          att.mon.curHP = Math.max(0, att.mon.curHP - chip);
+          ev.push({ t: "ability", side: defSide, ability: dab.slug });
+          ev.push({ t: "msg", key: "game.battle.contact_hurt", params: who });
+          ev.push({ t: "hp", side: isPlayer ? "player" : "enemy", hp: att.mon.curHP, maxHp: att.stats[0] });
+        }
+      }
     }
   }
 
@@ -659,23 +767,32 @@ export class BattleSession {
     // technician: ≤60 BP gets 1.5×
     if (aAb?.technician && power <= 60) power = Math.floor(power * 1.5);
 
-    const critChance = move?.m?.crit ? 1 / 8 : 1 / 24;
+    let critChance = move?.m?.crit ? 1 / 8 : 1 / 24;
+    if (att.focused) critChance = Math.max(critChance, 1 / 2);
     const crit = !src.typeless && this.rng() < critChance;
     let aStage = phys ? att.stages.atk : att.stages.spa;
     let dStage = phys ? def.stages.def : def.stages.spd;
     if (crit) { aStage = Math.max(0, aStage); dStage = Math.min(0, dStage); }
     let A = att.stats[phys ? 1 : 3] * stageMult(aStage);
-    const D = Math.max(1, def.stats[phys ? 2 : 4] * stageMult(dStage));
+    let D = Math.max(1, def.stats[phys ? 2 : 4] * stageMult(dStage));
     // huge/pure power double physical attack
     if (phys && aAb?.doubleAtk) A *= 2;
     // guts: 1.5× attack when statused
     if (phys && aAb?.guts && att.mon.status) A *= 1.5;
+    // solar power: 1.5× SpA in sun
+    if (!phys && aAb?.solarPower && this.weather === "sun") A *= 1.5;
+    // marvel scale: 1.5× Defense while statused
+    if (phys && dAb?.marvelScale && def.mon.status) D *= 1.5;
     let dmg = Math.floor(Math.floor((Math.floor((2 * L) / 5 + 2) * power * A) / D) / 50) + 2;
 
     if (moveType && move) {
-      if (att.species.t.includes(moveType)) dmg *= 1.5; // STAB
-      const eff = effectiveness(moveType, def.species.t);
+      // STAB (Adaptability upgrades it to 2×)
+      if (att.species.t.includes(moveType)) dmg *= aAb?.adaptability ? 2 : 1.5;
+      let eff = effectiveness(moveType, def.species.t);
+      if (eff === 0 && aAb?.scrappy && (moveType === "normal" || moveType === "fighting")) eff = 1;
       dmg *= eff;
+      // tinted lens: double damage on not-very-effective hits
+      if (aAb?.tintedLens && eff > 0 && eff < 1) dmg *= 2;
       // pinch abilities: 1.5× own-type move when HP ≤ 1/3
       if (aAb?.pinchType === moveType && att.mon.curHP <= att.stats[0] / 3) dmg *= 1.5;
       // flash-fire boost
@@ -687,8 +804,10 @@ export class BattleSession {
       if (dAb?.thickFat && (moveType === "fire" || moveType === "ice")) dmg *= 0.5;
       if (dAb?.resistType === moveType) dmg *= 0.5;
       if (dAb?.reduceSE && eff > 1) dmg *= 0.75;
+      // multiscale: halved at full HP
+      if (dAb?.multiscale && def.mon.curHP === def.stats[0]) dmg *= 0.5;
     }
-    if (crit) dmg *= 1.5;
+    if (crit) dmg *= aAb?.sniper ? 2.25 : 1.5;
     // burn halves physical unless Guts
     if (phys && att.mon.status === "brn" && !aAb?.guts) dmg *= 0.5;
     dmg *= 0.85 + this.rng() * 0.15;
@@ -715,6 +834,8 @@ export class BattleSession {
     const m = move.m;
     if (!m) return;
     const who = (b: Battler) => this.nameParam(b);
+    // Serene Grace doubles secondary effect chances
+    const graceMul = att.ability?.sereneGrace ? 2 : 1;
 
     // healing (recover etc.)
     if (m.heal && m.heal > 0) {
@@ -738,14 +859,14 @@ export class BattleSession {
 
     // ailments
     if (m.ail) {
-      const chance = isStatusMove ? (m.ailCh || 100) : m.ailCh || 0;
+      const chance = (isStatusMove ? (m.ailCh || 100) : m.ailCh || 0) * graceMul;
       if (chance > 0 && this.rng() * 100 < chance) {
         this.applyAilment(def, m.ail, ev);
       }
     }
 
     // flinch
-    if (m.flinch && dealt > 0 && this.rng() * 100 < m.flinch) {
+    if (m.flinch && dealt > 0 && this.rng() * 100 < m.flinch * graceMul) {
       def.flinched = true;
     }
   }
@@ -757,6 +878,8 @@ export class BattleSession {
     };
     const k = keyMap[statName];
     if (!k) return;
+    // Simple doubles the target's own stage changes
+    if (target.ability?.simple) change *= 2;
     const side: Side = target === this.player ? "player" : "enemy";
     const cur = target.stages[k];
     const params = { ...this.nameParam(target), stat: `%STAT_${k}%` };
@@ -778,6 +901,12 @@ export class BattleSession {
       if (def.confuse > 0) return;
       def.confuse = 2 + Math.floor(this.rng() * 3);
       ev.push({ t: "msg", key: "game.battle.confuse_inflict", params: who });
+      return;
+    }
+    if (ail === "trap") {
+      if (def.trapTurns > 0) return;
+      def.trapTurns = 2 + Math.floor(this.rng() * 4); // 2-5 turns
+      ev.push({ t: "msg", key: "game.battle.trap_inflict", params: who });
       return;
     }
     if (def.mon.status) return; // already has a major status
@@ -845,16 +974,16 @@ export class BattleSession {
     // ---- weather chip damage
     if (this.weather === "sand" || this.weather === "hail") {
       for (const b of [this.player, this.enemy] as Battler[]) {
-        if (b.mon.curHP <= 0 || this.weatherImmune(b, this.weather)) continue;
+        if (b.mon.curHP <= 0 || this.weatherImmune(b, this.weather) || b.ability?.magicGuard) continue;
         const side: Side = b === this.player ? "player" : "enemy";
         b.mon.curHP = Math.max(0, b.mon.curHP - Math.max(1, Math.floor(b.stats[0] / 16)));
         ev.push({ t: "msg", key: `game.battle.weather_${this.weather}_dmg`, params: this.nameParam(b) });
         ev.push({ t: "hp", side, hp: b.mon.curHP, maxHp: b.stats[0] });
       }
     }
-    // ---- status chip damage
+    // ---- status chip damage (Magic Guard is immune to indirect damage)
     for (const b of [this.player, this.enemy] as Battler[]) {
-      if (b.mon.curHP <= 0) continue;
+      if (b.mon.curHP <= 0 || b.ability?.magicGuard) continue;
       const side: Side = b === this.player ? "player" : "enemy";
       const who = this.nameParam(b);
       if (b.mon.status === "brn") {
@@ -864,6 +993,38 @@ export class BattleSession {
       } else if (b.mon.status === "psn" || b.mon.status === "tox") {
         b.mon.curHP = Math.max(0, b.mon.curHP - Math.max(1, Math.floor(b.stats[0] / 8)));
         ev.push({ t: "msg", key: "game.battle.psn_dmg", params: who });
+        ev.push({ t: "hp", side, hp: b.mon.curHP, maxHp: b.stats[0] });
+      }
+    }
+    // ---- bind/wrap chip + countdown
+    for (const b of [this.player, this.enemy] as Battler[]) {
+      if (b.trapTurns <= 0 || b.mon.curHP <= 0) continue;
+      const side: Side = b === this.player ? "player" : "enemy";
+      const who = this.nameParam(b);
+      b.trapTurns--;
+      if (!b.ability?.magicGuard) {
+        b.mon.curHP = Math.max(0, b.mon.curHP - Math.max(1, Math.floor(b.stats[0] / 8)));
+        ev.push({ t: "msg", key: "game.battle.trap_dmg", params: who });
+        ev.push({ t: "hp", side, hp: b.mon.curHP, maxHp: b.stats[0] });
+      }
+      if (b.trapTurns === 0) ev.push({ t: "msg", key: "game.battle.trap_end", params: who });
+    }
+    // ---- end-of-turn abilities
+    for (const b of [this.player, this.enemy] as Battler[]) {
+      if (b.mon.curHP <= 0) continue;
+      const side: Side = b === this.player ? "player" : "enemy";
+      if (b.ability?.speedBoost && b.stages.spe < 6) {
+        ev.push({ t: "ability", side, ability: b.ability.slug });
+        this.applyStatChange(b, "speed", 1, ev);
+      }
+      if (b.ability?.shedSkin && b.mon.status && this.rng() < 0.3) {
+        ev.push({ t: "ability", side, ability: b.ability.slug });
+        b.mon.status = null;
+        b.sleepTurns = 0;
+        ev.push({ t: "status", side, status: null });
+      }
+      if (b.ability?.solarPower && this.weather === "sun" && !b.ability.magicGuard) {
+        b.mon.curHP = Math.max(0, b.mon.curHP - Math.max(1, Math.floor(b.stats[0] / 8)));
         ev.push({ t: "hp", side, hp: b.mon.curHP, maxHp: b.stats[0] });
       }
     }
@@ -901,10 +1062,17 @@ export class BattleSession {
     });
 
     if (side === "enemy") {
-      // exp for the active player mon
+      // exp + EVs for the active player mon
       const gain = expGain(b.species.be, b.mon.level, this.kind === "trainer");
       const p = this.player;
       if (p.mon.curHP > 0 && p.mon.level < 100) {
+        // effort values from the defeated species
+        if (b.species.ey?.length) {
+          if (!p.mon.evs) p.mon.evs = [0, 0, 0, 0, 0, 0];
+          if (applyEvYield(p.mon.evs, b.species.ey)) {
+            p.stats = statsOf(p.mon, p.species);
+          }
+        }
         ev.push({ t: "msg", key: "game.battle.gained_exp", params: { ...this.nameParam(p), exp: gain } });
         const { levels, newMoves } = await applyExp(p.mon, p.species, gain);
         this.expEarnedBy.add(p.mon.uid);
@@ -950,10 +1118,21 @@ export class BattleSession {
     if (!target || target.curHP <= 0) return;
     if (voluntary) {
       ev.push({ t: "msg", key: "game.battle.come_back", params: this.nameParam(this.player) });
+      // switch-out abilities of the departing mon
+      const out = this.player;
+      if (out.mon.curHP > 0) {
+        if (out.ability?.regenerator) {
+          out.mon.curHP = Math.min(out.stats[0], out.mon.curHP + Math.floor(out.stats[0] / 3));
+        }
+        if (out.ability?.naturalCure && out.mon.status) {
+          out.mon.status = null;
+        }
+      }
     }
     this.player = await makeBattler(target);
     ev.push({ t: "msg", key: "game.battle.switch_in", params: this.nameParam(this.player) });
     ev.push({ t: "switch", side: "player", view: this.playerView() });
+    this.onSwitchIn(this.player, ev);
   }
 
   private async enemyActs(ev: BattleEvent[]) {

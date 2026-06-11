@@ -74,6 +74,7 @@ function cachedJson<T>(url: string): () => Promise<T> {
 export const loadDex = cachedJson<DexEntry[]>("/data/dex.json");
 export const loadMoves = cachedJson<MoveData[]>("/data/moves.json");
 export const loadLearnsets = cachedJson<Learnsets>("/data/learnsets.json");
+export const loadTmsets = cachedJson<Record<string, number[]>>("/data/tmsets.json");
 export const loadFlavor = cachedJson<FlavorMap>("/data/flavor.json");
 
 let dexById: Map<number, DexEntry> | null = null;

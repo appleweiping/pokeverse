@@ -420,6 +420,47 @@ export const useGame = create<GameStore>((set, get) => ({
     const maxHp = maxHPOf(mon, sp);
     let used = false;
 
+    // technical machine: teach the move (reusable, not consumed)
+    if (def.tmMove) {
+      const { loadTmsets, getMoveMap, localName } = await import("../data/dex");
+      const { currentLocale } = await import("../i18n");
+      const { learnMove } = await import("./factory");
+      const tmsets = await loadTmsets();
+      const compatible = tmsets[String(mon.speciesId)]?.includes(def.tmMove);
+      if (!compatible || mon.moves.some((m) => m.id === def.tmMove)) {
+        g.showToast(tr("game.bag.no_effect"));
+        return false;
+      }
+      const moveMap = await getMoveMap();
+      const mv = moveMap.get(def.tmMove);
+      if (!mv) return false;
+      const monName = mon.nickname ?? localName(sp.n, currentLocale());
+      const moveName = localName(mv.n, currentLocale());
+      if (mon.moves.length < 4) {
+        learnMove(mon, mv.id, mv.pp);
+        audio.sfx("levelup");
+        await g.showDialogue([tr("game.battle.learned", { name: monName, move: moveName })]);
+      } else {
+        await g.showDialogue([tr("game.battle.wants_learn", { name: monName, move: moveName })]);
+        const opts = mon.moves.map((m, i) => ({
+          label: localName(moveMap.get(m.id)?.n, currentLocale()),
+          value: String(i),
+        }));
+        opts.push({ label: tr("game.bag.give_up"), value: "skip" });
+        const pick = await g.askChoice(tr("game.battle.which_forget"), opts);
+        if (pick === null || pick === "skip") {
+          await g.showDialogue([tr("game.battle.not_learned", { name: monName, move: moveName })]);
+          return false;
+        }
+        learnMove(mon, mv.id, mv.pp, Number(pick));
+        audio.sfx("levelup");
+        await g.showDialogue([tr("game.battle.learned", { name: monName, move: moveName })]);
+      }
+      g.bump();
+      g.persist();
+      return true;
+    }
+
     if (def.evoItem) {
       const toId = itemEvolution(sp, def.evoItem);
       if (toId) {

@@ -552,6 +552,7 @@ export const MAPS: Record<string, MapDef> = {
     items: [
       { x: 4, y: 18, item: "great-ball", qty: 1, flag: "item:vf-gb" },
       { x: 20, y: 3, item: "antidote", qty: 1, flag: "item:vf-anti" },
+      { x: 20, y: 17, item: "tm-72", qty: 1, flag: "item:vf-tm72" },
     ],
     encounters: {
       rate: 0.15,
@@ -602,6 +603,7 @@ export const MAPS: Record<string, MapDef> = {
       { x: 14, y: 3, item: "moon-stone", qty: 1, flag: "item:mv-moon" },
       { x: 3, y: 13, item: "super-potion", qty: 2, flag: "item:mv-pot" },
       { x: 15, y: 16, item: "ultra-ball", qty: 1, flag: "item:mv-ub" },
+      { x: 14, y: 15, item: "tm-157", qty: 1, flag: "item:mv-tm157" },
     ],
     encounters: {
       rate: 0.12,
@@ -656,6 +658,7 @@ export const MAPS: Record<string, MapDef> = {
     items: [
       { x: 4, y: 14, item: "hyper-potion", qty: 1, flag: "item:r2-hp" },
       { x: 16, y: 19, item: "lum-berry", qty: 2, flag: "item:r2-lum" },
+      { x: 16, y: 11, item: "tm-19", qty: 1, flag: "item:r2-tm19" },
     ],
     encounters: {
       rate: 0.13,
@@ -822,6 +825,7 @@ export const MAPS: Record<string, MapDef> = {
     items: [
       { x: 4, y: 13, item: "super-potion", qty: 2, flag: "item:r3-sp" },
       { x: 28, y: 2, item: "paralyze-heal", qty: 2, flag: "item:r3-ph" },
+      { x: 26, y: 13, item: "tm-9", qty: 1, flag: "item:r3-tm9" },
     ],
     encounters: {
       rate: 0.13,
@@ -1006,6 +1010,7 @@ export const MAPS: Record<string, MapDef> = {
     items: [
       { x: 14, y: 2, item: "hyper-potion", qty: 1, flag: "item:r4-hp" },
       { x: 2, y: 23, item: "lum-berry", qty: 2, flag: "item:r4-lum" },
+      { x: 14, y: 22, item: "tm-76", qty: 1, flag: "item:r4-tm76" },
     ],
     encounters: {
       rate: 0.14,
@@ -1162,6 +1167,7 @@ export const MAPS: Record<string, MapDef> = {
     items: [
       { x: 13, y: 2, item: "ultra-ball", qty: 2, flag: "item:ah-ub" },
       { x: 2, y: 7, item: "revive", qty: 1, flag: "item:ah-rv" },
+      { x: 13, y: 9, item: "tm-188", qty: 1, flag: "item:ah-tm188" },
     ],
   },
 };

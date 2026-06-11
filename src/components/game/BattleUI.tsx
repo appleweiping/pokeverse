@@ -5,7 +5,7 @@ import { useI18n } from "@/lib/i18n";
 import type { BattleAction, BattleEvent, BattlerPublicView, Side } from "@/lib/game/battle";
 import { getDexMap, getMoveMap, localName, type Locale } from "@/lib/data/dex";
 import { abilityName } from "@/lib/data/abilities";
-import type { DexEntry, MoveData, Weather } from "@/lib/types";
+import type { DexEntry, MoveData, TypeName, Weather } from "@/lib/types";
 import { TYPE_COLORS } from "@/lib/data/typechart";
 import { ITEMS, BALL_ORDER } from "@/lib/game/items";
 import { audio } from "@/lib/audio/tracks";
@@ -32,6 +32,8 @@ export default function BattleUI() {
   const [swirl, setSwirl] = useState(true);
   const [weather, setWeather] = useState<Weather>("none");
   const [abilityFlash, setAbilityFlash] = useState<{ side: Side; name: string } | null>(null);
+  const [particles, setParticles] = useState<{ side: Side; type: TypeName; key: number } | null>(null);
+  const particleKey = useRef(0);
   const dexRef = useRef<Map<number, DexEntry> | null>(null);
   const movesRef = useRef<Map<number, MoveData> | null>(null);
   const busyRef = useRef(false);
@@ -137,7 +139,7 @@ export default function BattleUI() {
           break;
         }
         case "anim": {
-          await playAnim(e.kind, e.side);
+          await playAnim(e.kind, e.side, e.mt);
           break;
         }
         case "end":
@@ -146,17 +148,20 @@ export default function BattleUI() {
     }
   }, [resolveText]);
 
-  const playAnim = async (kind: string, side: Side) => {
+  const playAnim = async (kind: string, side: Side, mt?: TypeName) => {
     const setA = side === "player" ? setAnimP : setAnimE;
+    const burst = () => {
+      if (mt) setParticles({ side, type: mt, key: ++particleKey.current });
+    };
     switch (kind) {
       case "attack":
         setA(side === "player" ? "anim-lunge" : "anim-lunge-enemy");
         await sleep(380);
         setA("");
         break;
-      case "hit": audio.sfx("hit"); setA("anim-shake anim-flash"); await sleep(460); setA(""); break;
-      case "hit_super": audio.sfx("hit_super"); setA("anim-shake anim-flash"); await sleep(520); setA(""); break;
-      case "hit_weak": audio.sfx("hit_weak"); setA("anim-shake"); await sleep(400); setA(""); break;
+      case "hit": audio.sfx("hit"); burst(); setA("anim-shake anim-flash"); await sleep(460); setA(""); break;
+      case "hit_super": audio.sfx("hit_super"); burst(); setA("anim-shake anim-flash"); await sleep(520); setA(""); break;
+      case "hit_weak": audio.sfx("hit_weak"); burst(); setA("anim-shake"); await sleep(400); setA(""); break;
       case "faint": audio.sfx("faint"); setA("anim-faint"); await sleep(750); break;
       case "ball_throw":
         audio.sfx("ball_throw");
@@ -264,8 +269,9 @@ export default function BattleUI() {
         <div className="absolute right-[8%] top-[12%] sm:right-[14%]">
           <div className="mx-auto h-3 w-32 translate-y-[88px] rounded-full bg-black/15 blur-[2px]" />
           {!enemyHidden && (
-            <div className={animE}>
+            <div className={`relative ${animE}`}>
               <MonSprite id={ev.speciesId} shiny={ev.shiny} size={120} animateGen5 />
+              {particles?.side === "enemy" && <HitParticles key={particles.key} type={particles.type} />}
             </div>
           )}
           {ballAnim !== "none" && (
@@ -278,8 +284,9 @@ export default function BattleUI() {
         {/* player sprite */}
         <div className="absolute bottom-[2%] left-[6%] sm:left-[14%]">
           <div className="mx-auto h-4 w-40 translate-y-[110px] rounded-full bg-black/15 blur-[2px]" />
-          <div className={animP}>
+          <div className={`relative ${animP}`}>
             {pv.hp > 0 && <MonSprite id={pv.speciesId} shiny={pv.shiny} back size={150} />}
+            {particles?.side === "player" && <HitParticles key={particles.key} type={particles.type} />}
           </div>
         </div>
 
@@ -369,7 +376,7 @@ export default function BattleUI() {
           {mode === "bag" && (
             <div className="flex h-full flex-col gap-1 overflow-y-auto">
               {Object.entries(save?.bag ?? {})
-                .filter(([id, n]) => n > 0 && ITEMS[id] && ITEMS[id].category !== "key")
+                .filter(([id, n]) => n > 0 && ITEMS[id] && !["key", "tm", "hold", "battle"].includes(ITEMS[id].category))
                 .sort(([a], [b]) => (BALL_ORDER.includes(a) ? -1 : 0) - (BALL_ORDER.includes(b) ? -1 : 0))
                 .map(([id, n]) => {
                   const def = ITEMS[id];
@@ -426,6 +433,41 @@ function BackBtn({ onClick, label }: { onClick: () => void; label: string }) {
     >
       ← {label}
     </button>
+  );
+}
+
+/** Type-colored pixel burst shown where a move connects. */
+function HitParticles({ type }: { type: TypeName }) {
+  const color = TYPE_COLORS[type];
+  const bits = Array.from({ length: 10 }, (_, i) => {
+    const ang = (i / 10) * Math.PI * 2 + (i % 2) * 0.3;
+    const dist = 34 + (i % 3) * 16;
+    return {
+      dx: Math.cos(ang) * dist,
+      dy: Math.sin(ang) * dist,
+      size: i % 3 === 0 ? 7 : 5,
+      delay: (i % 4) * 28,
+    };
+  });
+  return (
+    <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+      {bits.map((b, i) => (
+        <span
+          key={i}
+          className="absolute"
+          style={{
+            width: b.size,
+            height: b.size,
+            backgroundColor: i % 4 === 0 ? "#ffffff" : color,
+            // @ts-expect-error CSS custom props
+            "--dx": `${b.dx}px`,
+            "--dy": `${b.dy}px`,
+            animation: `particleFly .5s ease-out ${b.delay}ms forwards`,
+            imageRendering: "pixelated",
+          }}
+        />
+      ))}
+    </div>
   );
 }
 

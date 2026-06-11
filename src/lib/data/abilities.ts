@@ -44,6 +44,40 @@ export interface AbilityDef {
   weatherSpeed?: "sun" | "rain";
   /** thick-fat: halve fire & ice damage */
   thickFat?: boolean;
+  /** speed-boost: +1 Spe at end of each turn */
+  speedBoost?: boolean;
+  /** regenerator: heal 1/3 max HP when switched out */
+  regenerator?: boolean;
+  /** natural-cure: status heals when switched out */
+  naturalCure?: boolean;
+  /** magic-guard: immune to indirect damage (status/weather/trap chip) */
+  magicGuard?: boolean;
+  /** serene-grace: secondary effect chances doubled */
+  sereneGrace?: boolean;
+  /** static / poison-point / flame-body: chance to status attacker on contact */
+  contactStatus?: { status: "par" | "psn" | "brn"; chance: number };
+  /** rough-skin / iron-barbs: attacker takes 1/8 on contact */
+  contactDamage?: boolean;
+  /** shed-skin: 30% chance to cure status at end of turn */
+  shedSkin?: boolean;
+  /** adaptability: STAB becomes 2× */
+  adaptability?: boolean;
+  /** sniper: crits deal 2.25× instead of 1.5× */
+  sniper?: boolean;
+  /** simple: own stat stage changes are doubled */
+  simple?: boolean;
+  /** multiscale: halve damage taken at full HP */
+  multiscale?: boolean;
+  /** marvel-scale: 1.5× Defense while statused */
+  marvelScale?: boolean;
+  /** quick-feet: 1.5× Speed while statused; ignores paralysis drop */
+  quickFeet?: boolean;
+  /** tinted-lens: not-very-effective moves deal double damage */
+  tintedLens?: boolean;
+  /** scrappy: Normal/Fighting moves hit Ghost */
+  scrappy?: boolean;
+  /** solar-power: 1.5× SpA in sun, loses 1/8 HP each turn in sun */
+  solarPower?: boolean;
 }
 
 export const ABILITIES: Record<string, AbilityDef> = {
@@ -82,6 +116,26 @@ export const ABILITIES: Record<string, AbilityDef> = {
   filter: { slug: "filter", reduceSE: true, n: { hans: "过滤", hant: "過濾", en: "Filter", ja: "フィルター", ko: "필터" } },
   "solid-rock": { slug: "solid-rock", reduceSE: true, n: { hans: "坚硬岩石", hant: "堅硬岩石", en: "Solid Rock", ja: "ハードロック", ko: "하드록" } },
   "no-guard": { slug: "no-guard", noGuard: true, n: { hans: "无防守", hant: "無防守", en: "No Guard", ja: "ノーガード", ko: "노가드" } },
+  "speed-boost": { slug: "speed-boost", speedBoost: true, n: { hans: "加速", hant: "加速", en: "Speed Boost", ja: "かそく", ko: "가속" } },
+  regenerator: { slug: "regenerator", regenerator: true, n: { hans: "再生力", hant: "再生力", en: "Regenerator", ja: "さいせいりょく", ko: "재생력" } },
+  "natural-cure": { slug: "natural-cure", naturalCure: true, n: { hans: "自然回复", hant: "自然回復", en: "Natural Cure", ja: "しぜんかいふく", ko: "자연회복" } },
+  "magic-guard": { slug: "magic-guard", magicGuard: true, n: { hans: "魔法防守", hant: "魔法防守", en: "Magic Guard", ja: "マジックガード", ko: "매직가드" } },
+  "serene-grace": { slug: "serene-grace", sereneGrace: true, n: { hans: "天恩", hant: "天恩", en: "Serene Grace", ja: "てんのめぐみ", ko: "하늘의은총" } },
+  static: { slug: "static", contactStatus: { status: "par", chance: 30 }, n: { hans: "静电", hant: "靜電", en: "Static", ja: "せいでんき", ko: "정전기" } },
+  "poison-point": { slug: "poison-point", contactStatus: { status: "psn", chance: 30 }, n: { hans: "毒刺", hant: "毒刺", en: "Poison Point", ja: "どくのトゲ", ko: "독가시" } },
+  "flame-body": { slug: "flame-body", contactStatus: { status: "brn", chance: 30 }, n: { hans: "火焰之躯", hant: "火焰之軀", en: "Flame Body", ja: "ほのおのからだ", ko: "불꽃몸" } },
+  "rough-skin": { slug: "rough-skin", contactDamage: true, n: { hans: "粗糙皮肤", hant: "粗糙皮膚", en: "Rough Skin", ja: "さめはだ", ko: "까칠한피부" } },
+  "iron-barbs": { slug: "iron-barbs", contactDamage: true, n: { hans: "铁刺", hant: "鐵刺", en: "Iron Barbs", ja: "てつのトゲ", ko: "철가시" } },
+  "shed-skin": { slug: "shed-skin", shedSkin: true, n: { hans: "蜕皮", hant: "蛻皮", en: "Shed Skin", ja: "だっぴ", ko: "탈피" } },
+  adaptability: { slug: "adaptability", adaptability: true, n: { hans: "适应力", hant: "適應力", en: "Adaptability", ja: "てきおうりょく", ko: "적응력" } },
+  sniper: { slug: "sniper", sniper: true, n: { hans: "狙击手", hant: "狙擊手", en: "Sniper", ja: "スナイパー", ko: "스나이퍼" } },
+  simple: { slug: "simple", simple: true, n: { hans: "单纯", hant: "單純", en: "Simple", ja: "たんじゅん", ko: "단순" } },
+  multiscale: { slug: "multiscale", multiscale: true, n: { hans: "多重鳞片", hant: "多重鱗片", en: "Multiscale", ja: "マルチスケイル", ko: "멀티스케일" } },
+  "marvel-scale": { slug: "marvel-scale", marvelScale: true, n: { hans: "神奇鳞片", hant: "神奇鱗片", en: "Marvel Scale", ja: "ふしぎなうろこ", ko: "이상한비늘" } },
+  "quick-feet": { slug: "quick-feet", quickFeet: true, n: { hans: "飞毛腿", hant: "飛毛腿", en: "Quick Feet", ja: "はやあし", ko: "속보" } },
+  "tinted-lens": { slug: "tinted-lens", tintedLens: true, n: { hans: "有色眼镜", hant: "有色眼鏡", en: "Tinted Lens", ja: "いろめがね", ko: "색안경" } },
+  scrappy: { slug: "scrappy", scrappy: true, n: { hans: "胆量", hant: "膽量", en: "Scrappy", ja: "きもったま", ko: "배짱" } },
+  "solar-power": { slug: "solar-power", solarPower: true, n: { hans: "太阳之力", hant: "太陽之力", en: "Solar Power", ja: "サンパワー", ko: "선파워" } },
 };
 
 export function abilityName(slug: string | undefined, locale: "zh-CN" | "zh-TW" | "en" | "ja" | "ko"): string {

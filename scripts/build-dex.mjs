@@ -22,6 +22,12 @@ const OUT = path.resolve("public/data");
 const MAX_ID = 1025;
 const CONC = 24;
 
+/** The 24 moves we ship as TMs (classic, battle-relevant picks). */
+const TM_MOVES = [
+  7, 8, 9, 19, 20, 38, 53, 58, 72, 76, 85, 86,
+  89, 91, 92, 94, 116, 156, 157, 164, 182, 188, 247, 332,
+];
+
 const API = "https://pokeapi.co/api/v2";
 const MIRROR = "https://cdn.jsdelivr.net/gh/PokeAPI/api-data@master/data/api/v2";
 
@@ -110,6 +116,7 @@ async function main() {
   const ids = Array.from({ length: MAX_ID }, (_, i) => i + 1);
   const dex = new Array(MAX_ID);
   const learnsets = {};
+  const tmsets = {};
   const flavor = {};
   const chainIds = new Set();
 
@@ -131,12 +138,15 @@ async function main() {
         .sort((a, b) => a.slot - b.slot)
         .map((t) => t.type.name);
 
-      // newest version-group level-up learnset
+      // newest version-group level-up learnset + TM compatibility
       const byVg = new Map();
+      const tmOk = new Set();
       for (const mv of pk.moves) {
         const moveId = idFromUrl(mv.move.url);
         for (const d of mv.version_group_details) {
-          if (d.move_learn_method?.name !== "level-up") continue;
+          const method = d.move_learn_method?.name;
+          if (method === "machine" && TM_MOVES.includes(moveId)) tmOk.add(moveId);
+          if (method !== "level-up") continue;
           const vg = idFromUrl(d.version_group.url);
           if (!byVg.has(vg)) byVg.set(vg, []);
           byVg.get(vg).push([d.level_learned_at, moveId]);
@@ -150,6 +160,7 @@ async function main() {
       } else {
         learnsets[id] = [];
       }
+      if (tmOk.size) tmsets[id] = [...tmOk].sort((a, b) => a - b);
 
       // flavor text: keep the newest entry per language
       const fl = {};
@@ -168,6 +179,13 @@ async function main() {
         .sort((a, b) => a.slot - b.slot)
         .map((a) => (a.is_hidden ? "!" : "") + a.ability.name);
 
+      // effort-value yield, sparse [[statIdx, n], ...]
+      const ey = [];
+      STAT_ORDER.forEach((name, i) => {
+        const eff = pk.stats.find((s) => s.stat.name === name)?.effort ?? 0;
+        if (eff > 0) ey.push([i, eff]);
+      });
+
       dex[id - 1] = {
         id,
         n: pickNames(sp.names),
@@ -182,6 +200,7 @@ async function main() {
         ab: abilities,
         // gender rate: -1 genderless, else female ratio in eighths (0-8)
         gen: sp.gender_rate ?? -1,
+        ...(ey.length ? { ey } : {}),
       };
     },
     "pokemon"
@@ -273,6 +292,7 @@ async function main() {
   await write("dex.json", dex.filter(Boolean));
   await write("moves.json", moves);
   await write("learnsets.json", learnsets);
+  await write("tmsets.json", tmsets);
   await write("flavor.json", flavor);
   await write("meta.json", {
     generatedAt: new Date().toISOString(),

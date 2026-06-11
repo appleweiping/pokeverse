@@ -42,3 +42,16 @@ export const MART_STOCK: string[] = [
 ];
 
 export const BALL_ORDER = ["poke-ball", "great-ball", "ultra-ball"];
+
+/** The 24 TMs we ship (id ↔ taught move). Names render as "TM · <move name>". */
+export const TM_MOVES = [
+  7, 8, 9, 19, 20, 38, 53, 58, 72, 76, 85, 86,
+  89, 91, 92, 94, 116, 156, 157, 164, 182, 188, 247, 332,
+];
+for (const mid of TM_MOVES) {
+  ITEMS[`tm-${mid}`] = { id: `tm-${mid}`, category: "tm", price: 2500, tmMove: mid };
+}
+
+/** TMs sold at marts (the rest are found in the world). */
+export const MART_TMS = ["tm-86", "tm-164", "tm-91", "tm-157"];
+MART_STOCK.push(...MART_TMS);

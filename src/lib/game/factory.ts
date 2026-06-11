@@ -64,6 +64,7 @@ export async function createMon(
     level,
     exp: expForLevel(species.gr, level),
     ivs,
+    evs: [0, 0, 0, 0, 0, 0],
     nature,
     moves,
     curHP: stats[0],
@@ -78,11 +79,11 @@ export async function createMon(
 }
 
 export function maxHPOf(mon: Mon, species: DexEntry): number {
-  return calcStats(species.s, mon.ivs, mon.level, mon.nature)[0];
+  return calcStats(species.s, mon.ivs, mon.level, mon.nature, mon.evs)[0];
 }
 
 export function statsOf(mon: Mon, species: DexEntry) {
-  return calcStats(species.s, mon.ivs, mon.level, mon.nature);
+  return calcStats(species.s, mon.ivs, mon.level, mon.nature, mon.evs);
 }
 
 export function healMon(mon: Mon, species: DexEntry) {

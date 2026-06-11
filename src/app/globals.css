@@ -121,6 +121,12 @@ img.sprite {
 .anim-flash { animation: flashWhite 0.3s linear 2; }
 .anim-wobble { animation: ballWobble 0.7s ease-in-out; }
 
+/* hit particle burst */
+@keyframes particleFly {
+  from { transform: translate(0, 0) scale(1); opacity: 1; }
+  to { transform: translate(var(--dx), var(--dy)) scale(0.4); opacity: 0; }
+}
+
 /* weather particles */
 @keyframes weatherRain {
   from { transform: translateY(-12%); }

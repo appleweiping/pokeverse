@@ -52,6 +52,16 @@ export default function MenuUI() {
   const close = (s: SubMenu = null) => { audio.sfx("cancel"); g.setSubmenu(s); setDetail(null); setPickTarget(null); };
 
   const monName = (m: Mon) => m.nickname ?? localName(dexMap?.get(m.speciesId)?.n, locale);
+  const itemName = (id: string) => {
+    const def = ITEMS[id];
+    if (def?.tmMove) return "TM·" + localName(moveMap?.get(def.tmMove)?.n, locale);
+    return t(`items.${id}.n`);
+  };
+  const itemDesc = (id: string) => {
+    const def = ITEMS[id];
+    if (def?.tmMove) return t("items.tm_desc", { move: localName(moveMap?.get(def.tmMove)?.n, locale) });
+    return t(`items.${id}.d`);
+  };
 
   // ====================================================================== sub menus
   const renderSub = () => {
@@ -86,7 +96,12 @@ export default function MenuUI() {
                     {labels.map((lb, i) => (
                       <div key={i} className="flex justify-between border-b border-slate-700/60 py-0.5">
                         <span className="text-slate-400">{lb}</span>
-                        <b className="tabular-nums">{stats[i]}</b>
+                        <b className="tabular-nums">
+                          {stats[i]}
+                          {(mon.evs?.[i] ?? 0) > 0 && (
+                            <span className="ml-1 text-[10px] font-bold text-amber-400/90">EV{mon.evs![i]}</span>
+                          )}
+                        </b>
                       </div>
                     ))}
                     <div className="flex justify-between py-0.5">
@@ -222,7 +237,8 @@ export default function MenuUI() {
       case "bag": {
         const cats: [ItemDef["category"], string][] = [
           ["ball", t("game.bag.balls")], ["medicine", t("game.bag.medicine")], ["berry", t("game.bag.berries")],
-          ["battle", t("game.bag.medicine")], ["hold", t("game.bag.berries")], ["key", t("game.bag.key")],
+          ["tm", t("game.bag.tms")], ["battle", t("game.bag.medicine")], ["hold", t("game.bag.berries")],
+          ["key", t("game.bag.key")],
         ];
         const entries = Object.entries(save.bag).filter(([, n]) => n > 0);
         if (pickTarget) {
@@ -262,11 +278,11 @@ export default function MenuUI() {
                         <div key={id} className="flex items-center gap-2 rounded-lg bg-slate-800/80 px-3 py-2">
                           {ITEMS[id].category === "ball" && <PokeballIcon size={18} />}
                           <div className="min-w-0 flex-1">
-                            <b className="text-sm">{t(`items.${id}.n`)}</b>
-                            <p className="truncate text-[11px] text-slate-400">{t(`items.${id}.d`)}</p>
+                            <b className="text-sm">{itemName(id)}</b>
+                            <p className="truncate text-[11px] text-slate-400">{itemDesc(id)}</p>
                           </div>
                           <span className="text-xs font-bold tabular-nums text-slate-300">×{n}</span>
-                          {(ITEMS[id].heal || ITEMS[id].cure || ITEMS[id].revive || ITEMS[id].evoItem) && (
+                          {(ITEMS[id].heal || ITEMS[id].cure || ITEMS[id].revive || ITEMS[id].evoItem || ITEMS[id].tmMove) && (
                             <button
                               onClick={() => { audio.sfx("select"); setPickTarget(id); }}
                               className="pixel-btn bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white"
@@ -484,8 +500,8 @@ export default function MenuUI() {
                 <div key={id} className="flex items-center gap-2 rounded-lg bg-slate-800/80 px-3 py-2">
                   {ITEMS[id].category === "ball" && <PokeballIcon size={18} />}
                   <div className="min-w-0 flex-1">
-                    <b className="text-sm">{t(`items.${id}.n`)}</b>
-                    <p className="truncate text-[11px] text-slate-400">{t(`items.${id}.d`)}</p>
+                    <b className="text-sm">{itemName(id)}</b>
+                    <p className="truncate text-[11px] text-slate-400">{itemDesc(id)}</p>
                   </div>
                   <span className="text-xs font-bold tabular-nums text-amber-300">₽{ITEMS[id].price}</span>
                   <button

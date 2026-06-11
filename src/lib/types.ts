@@ -42,6 +42,8 @@ export interface DexEntry {
   ab?: string[]; // ability slugs; hidden ability prefixed with "!"
   gen?: number; // gender rate: -1 genderless, else female ratio in eighths
   evo?: EvoEdge[];
+  /** EV yield, sparse [[statIdx, amount], ...] */
+  ey?: [number, number][];
 }
 
 export type Weather = "none" | "sun" | "rain" | "sand" | "hail";
@@ -94,6 +96,8 @@ export interface Mon {
   level: number;
   exp: number;
   ivs: [number, number, number, number, number, number];
+  /** effort values, [hp,atk,def,spa,spd,spe]; absent on pre-v0.5 saves */
+  evs?: [number, number, number, number, number, number];
   nature: number; // index into NATURES
   moves: MonMove[];
   curHP: number;
@@ -137,8 +141,10 @@ export interface SaveData {
 
 export interface ItemDef {
   id: string;
-  category: "ball" | "medicine" | "battle" | "key" | "berry" | "hold";
+  category: "ball" | "medicine" | "battle" | "key" | "berry" | "hold" | "tm";
   price: number;
+  /** technical machine: teaches this move id */
+  tmMove?: number;
   /** ball catch-rate multiplier */
   ballMult?: number;
   /** flat HP restored */
