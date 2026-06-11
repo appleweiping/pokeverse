@@ -67,6 +67,10 @@ interface Battler {
   fireBoost: boolean;
   /** held berry consumed flag (one-time) */
   berryUsed: boolean;
+  /** Protect/Detect active for the rest of this turn */
+  protectedT: boolean;
+  /** consecutive Protect uses (success falls off) */
+  protectStreak: number;
 }
 
 function abilityOf(mon: Mon): AbilityDef | null {
@@ -104,6 +108,8 @@ async function makeBattler(mon: Mon): Promise<Battler> {
     ability: abilityOf(mon),
     fireBoost: false,
     berryUsed: false,
+    protectedT: false,
+    protectStreak: 0,
   };
 }
 
@@ -459,6 +465,9 @@ export class BattleSession {
       }
     }
 
+    // any non-Protect move breaks the Protect success chain
+    att.protectStreak = 0;
+
     // --- announce + PP
     ev.push({
       t: "msg",
@@ -484,6 +493,33 @@ export class BattleSession {
     const defSide: Side = def === this.player ? "player" : "enemy";
 
     if (move.c === 2) {
+      // ------- Protect / Detect
+      if (move.id === 182 || move.id === 197) {
+        const chance = 1 / Math.pow(2, att.protectStreak);
+        if (this.rng() < chance) {
+          att.protectedT = true;
+          att.protectStreak++;
+          ev.push({ t: "msg", key: "game.battle.protected_self", params: who });
+        } else {
+          att.protectStreak = 0;
+          ev.push({ t: "msg", key: "game.battle.protect_fail", params: who });
+        }
+        return;
+      }
+      // ------- Rest
+      if (move.id === 156) {
+        if (att.mon.curHP >= att.stats[0]) {
+          ev.push({ t: "msg", key: "game.battle.missed" });
+          return;
+        }
+        att.mon.status = "slp";
+        att.sleepTurns = 2;
+        att.mon.curHP = att.stats[0];
+        ev.push({ t: "msg", key: "game.battle.rest", params: who });
+        ev.push({ t: "status", side: isPlayer ? "player" : "enemy", status: "slp" });
+        ev.push({ t: "hp", side: isPlayer ? "player" : "enemy", hp: att.mon.curHP, maxHp: att.stats[0] });
+        return;
+      }
       // ------- weather-setting moves
       const WEATHER_MOVES: Record<number, Weather> = { 241: "sun", 240: "rain", 201: "sand", 258: "hail" };
       const w = WEATHER_MOVES[move.id];
@@ -498,8 +534,19 @@ export class BattleSession {
         }
         return;
       }
+      // ------- Protect blocks status moves aimed at the foe
+      if (def.protectedT && move.m?.tgt !== "user") {
+        ev.push({ t: "msg", key: "game.battle.protected", params: this.nameParam(def) });
+        return;
+      }
       // ------- status move
       this.applyMoveEffects(att, def, move, ev, 0, true);
+      return;
+    }
+
+    // ------- Protect blocks the incoming damaging move
+    if (def.protectedT) {
+      ev.push({ t: "msg", key: "game.battle.protected", params: this.nameParam(def) });
       return;
     }
 
@@ -822,6 +869,9 @@ export class BattleSession {
     }
     // ---- low-HP berry triggers
     for (const b of [this.player, this.enemy] as Battler[]) this.checkBerry(b, ev);
+    // ---- Protect expires at end of turn
+    this.player.protectedT = false;
+    this.enemy.protectedT = false;
     // ---- weather countdown
     if (this.weather !== "none" && this.weatherTurns > 0) {
       this.weatherTurns--;

@@ -13,6 +13,7 @@ export const LEGEND: Record<string, T> = {
   _: T.FLOOR, I: T.IWALL, u: T.RUG, m: T.MAT, a: T.TABLE, b: T.SHELF,
   E: T.BED, P: T.PC, c: T.COUNTER, h: T.HEALER,
   "-": T.CAVE_FLOOR, C: T.CAVE_WALL, L: T.LEDGE, S: T.SAND, F: T.GYM_FLOOR, X: T.STATUE,
+  x: T.CUT_TREE, o: T.ROCK_SMASH,
 };
 
 export interface WarpDef { x: number; y: number; to: string; tx: number; ty: number; dir?: Dir }
@@ -218,8 +219,8 @@ export const MAPS: Record<string, MapDef> = {
       "T......,,,,........T",
       "T......,,,,....s...T",
       "T..,,,,,,,,........T",
-      "T..,,..............T",
-      "T..,,..ggggg.......T",
+      "T..,,.............xT",
+      "T..,,..ggggg.....o.T",
       "T..,,..ggggg.......T",
       "T..,,..ggggg.......T",
       "T..,,..............T",

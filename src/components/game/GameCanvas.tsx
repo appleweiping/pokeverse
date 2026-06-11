@@ -17,12 +17,14 @@ export default function GameCanvas({ engineRef }: { engineRef: React.MutableRefO
 
     const resize = () => {
       const r = wrap.getBoundingClientRect();
-      canvas.width = Math.floor(r.width);
-      canvas.height = Math.floor(r.height);
+      // background tabs can report 0×0 before first layout — fall back to viewport
+      canvas.width = Math.floor(r.width) || window.innerWidth;
+      canvas.height = Math.floor(r.height) || window.innerHeight;
     };
     resize();
     const ro = new ResizeObserver(resize);
     ro.observe(wrap);
+    document.addEventListener("visibilitychange", resize);
 
     const engine = new Overworld(canvas);
     engineRef.current = engine;
@@ -39,6 +41,7 @@ export default function GameCanvas({ engineRef }: { engineRef: React.MutableRefO
     return () => {
       clearInterval(tick);
       window.removeEventListener("beforeunload", onUnload);
+      document.removeEventListener("visibilitychange", resize);
       ro.disconnect();
       engine.destroy();
       engineRef.current = null;

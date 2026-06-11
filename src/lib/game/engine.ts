@@ -287,9 +287,19 @@ export class Overworld {
       // doors are enterable only when a warp exists
       return this.map.warps.some((w) => w.x === x && w.y === y);
     }
+    // Surf: water becomes passable once the player can use Surf
+    if (tile === T.WATER) return this.canField(57, "tidal");
     if (SOLID.has(tile)) return false;
     if (this.npcs.some((n) => n.x === x && n.y === y)) return false;
     return true;
+  }
+
+  /** Whether the party can use a field move now (knows the move + has the badge). */
+  private canField(moveId: number, badge: string): boolean {
+    const save = useGame.getState().save;
+    if (!save) return false;
+    if (badge && !save.badges.includes(badge)) return false;
+    return save.party.some((m) => m.moves.some((mv) => mv.id === moveId));
   }
 
   private async arrived() {
@@ -422,12 +432,45 @@ export class Overworld {
       this.busy = false;
       return;
     }
-    if (tile === T.WATER) {
+    if (tile === T.CUT_TREE) {
       this.busy = true;
-      await g.showDialogue([tr("game.field.cant_swim")]);
+      if (this.canField(15, "boulder")) {
+        await g.showDialogue([tr("game.field.used_cut")]);
+        audio.sfx("hit");
+        this.setTile(fx, fy, T.GROUND);
+      } else {
+        await g.showDialogue([tr("game.field.need_cut")]);
+      }
       this.busy = false;
       return;
     }
+    if (tile === T.ROCK_SMASH) {
+      this.busy = true;
+      if (this.canField(249, "boulder")) {
+        await g.showDialogue([tr("game.field.used_smash")]);
+        audio.sfx("hit_super");
+        this.setTile(fx, fy, T.PATH);
+      } else {
+        await g.showDialogue([tr("game.field.need_smash")]);
+      }
+      this.busy = false;
+      return;
+    }
+    if (tile === T.WATER) {
+      this.busy = true;
+      if (this.canField(57, "tidal")) {
+        await g.showDialogue([tr("game.field.surf_prompt")]);
+      } else {
+        await g.showDialogue([tr("game.field.cant_swim")]);
+      }
+      this.busy = false;
+      return;
+    }
+  }
+
+  /** Mutate a tile in the active (cached) map — persists for the session. */
+  private setTile(x: number, y: number, t: T) {
+    this.map.tiles[y * this.map.w + x] = t;
   }
 
   private async talkTo(npc: NpcState) {
@@ -608,7 +651,8 @@ export class Overworld {
       drawables.push({
         y: n.y * TILE,
         draw: () => {
-          ctx.drawImage(getCharSprite(n.def.palette, DIRN[n.dir], 0), n.x * TILE, n.y * TILE - 2);
+          // 16×20 sprite anchored to the tile bottom
+          ctx.drawImage(getCharSprite(n.def.palette, DIRN[n.dir], 0), n.x * TILE, n.y * TILE - 4);
         },
       });
     }
@@ -629,11 +673,21 @@ export class Overworld {
       }
     }
 
+    const onWater = tileAt(this.map, this.tx, this.ty) === T.WATER;
     drawables.push({
       y: this.py,
       draw: () => {
+        if (onWater) {
+          // surf platform under the trainer
+          ctx.fillStyle = "#3a78c0";
+          ctx.beginPath();
+          ctx.ellipse(this.px + 8, this.py + 14, 9, 4, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#7fb6e8";
+          ctx.fillRect(this.px + 1, this.py + 13, 14, 1);
+        }
         const f = this.moving ? this.walkFrame : 0;
-        ctx.drawImage(getCharSprite("hero", DIRN[this.dir], f), this.px, this.py - 2);
+        ctx.drawImage(getCharSprite("hero", DIRN[this.dir], f), this.px, this.py - 4);
       },
     });
 
