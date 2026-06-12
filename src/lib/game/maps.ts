@@ -300,6 +300,50 @@ const TRAINERS = {
   } as TrainerDef,
 };
 
+/** Post-champion gym leader rematches (repeatable, Lv.60+ teams, gym theme). */
+export const REMATCH: Record<string, TrainerDef> = {
+  boulder: {
+    id: "rematch-boulder", nameKey: "story.tn.gym1", preKey: "story.rematch_pre", loseKey: "story.rematch_lose",
+    team: [{ speciesId: 95, level: 60 }, { speciesId: 76, level: 60 }, { speciesId: 142, level: 61 }, { speciesId: 139, level: 60 }, { speciesId: 112, level: 62 }],
+    prize: 8000, theme: "gym",
+  },
+  tidal: {
+    id: "rematch-tidal", nameKey: "story.tn.gym2", preKey: "story.rematch_pre", loseKey: "story.rematch_lose",
+    team: [{ speciesId: 121, level: 60 }, { speciesId: 9, level: 61 }, { speciesId: 134, level: 60 }, { speciesId: 130, level: 61 }, { speciesId: 131, level: 62 }],
+    prize: 8000, theme: "gym",
+  },
+  volt: {
+    id: "rematch-volt", nameKey: "story.tn.gym3", preKey: "story.rematch_pre", loseKey: "story.rematch_lose",
+    team: [{ speciesId: 82, level: 60 }, { speciesId: 101, level: 60 }, { speciesId: 26, level: 61 }, { speciesId: 135, level: 61 }, { speciesId: 125, level: 62 }],
+    prize: 8000, theme: "gym",
+  },
+  meadow: {
+    id: "rematch-meadow", nameKey: "story.tn.gym4", preKey: "story.rematch_pre", loseKey: "story.rematch_lose",
+    team: [{ speciesId: 45, level: 60 }, { speciesId: 71, level: 60 }, { speciesId: 114, level: 61 }, { speciesId: 103, level: 61 }, { speciesId: 3, level: 62 }],
+    prize: 8000, theme: "gym",
+  },
+  venom: {
+    id: "rematch-venom", nameKey: "story.tn.gym5", preKey: "story.rematch_pre", loseKey: "story.rematch_lose",
+    team: [{ speciesId: 24, level: 60 }, { speciesId: 49, level: 60 }, { speciesId: 73, level: 61 }, { speciesId: 89, level: 61 }, { speciesId: 94, level: 62 }],
+    prize: 8000, theme: "gym",
+  },
+  mind: {
+    id: "rematch-mind", nameKey: "story.tn.gym6", preKey: "story.rematch_pre", loseKey: "story.rematch_lose",
+    team: [{ speciesId: 122, level: 60 }, { speciesId: 80, level: 60 }, { speciesId: 97, level: 61 }, { speciesId: 124, level: 61 }, { speciesId: 65, level: 62 }],
+    prize: 8000, theme: "gym",
+  },
+  frost: {
+    id: "rematch-frost", nameKey: "story.tn.gym7", preKey: "story.rematch_pre", loseKey: "story.rematch_lose",
+    team: [{ speciesId: 87, level: 60 }, { speciesId: 91, level: 60 }, { speciesId: 124, level: 61 }, { speciesId: 221, level: 61 }, { speciesId: 131, level: 62 }],
+    prize: 8000, theme: "gym",
+  },
+  dragon: {
+    id: "rematch-dragon", nameKey: "story.tn.gym8", preKey: "story.rematch_pre", loseKey: "story.rematch_lose",
+    team: [{ speciesId: 148, level: 60 }, { speciesId: 142, level: 61 }, { speciesId: 130, level: 61 }, { speciesId: 6, level: 62 }, { speciesId: 149, level: 63 }],
+    prize: 8000, theme: "gym",
+  },
+};
+
 export const MAPS: Record<string, MapDef> = {
   // ========================================================= SPROUT TOWN
   "sprout-town": {
@@ -1777,7 +1821,7 @@ export const MAPS: Record<string, MapDef> = {
       "TnnGGGGGGGnnsnnnnnnT",
       "TnnGGGGGGGnnnnnnnnnT",
       "TnnWwwDwwWnnnnrrnnnT",
-      "Tnnnnn,nnnnnnnrrnnnT",
+      "Tnnnnn,nnnnnnnrrn@nT",
       "T,,,,,,,,,,,,,,,,,,T",
       "Tnnnnnnnn,,nnnnnnnnT",
       "Tnnnnnnnn,,nnnnnnnnT",
@@ -1789,6 +1833,7 @@ export const MAPS: Record<string, MapDef> = {
       { x: 6, y: 9, to: "gym-dragon", tx: 6, ty: 9, dir: "up" },
       { x: 9, y: 0, to: "victory-road", tx: 8, ty: 14, dir: "up", ifFlag: "badges:8", lockedKey: "story.vr_locked" },
       { x: 10, y: 0, to: "victory-road", tx: 9, ty: 14, dir: "up", ifFlag: "badges:8", lockedKey: "story.vr_locked" },
+      { x: 17, y: 10, to: "sky-pillar", tx: 5, ty: 10, ifFlag: "champion_done", lockedKey: "story.sky_locked" },
     ],
     signs: [{ x: 12, y: 7, textKey: "story.sign_dragon" }],
     npcs: [
@@ -1832,6 +1877,33 @@ export const MAPS: Record<string, MapDef> = {
           team: [{ speciesId: 147, level: 39 }, { speciesId: 117, level: 39 }], prize: 1170,
         },
       },
+    ],
+    items: [],
+  },
+
+  // ========================================================= SKY PILLAR (post-game)
+  "sky-pillar": {
+    id: "sky-pillar",
+    nameKey: "story.sign_sky",
+    music: "cave",
+    grid: [
+      "CCCCCCCCCCCC",
+      "C----------C",
+      "C--C----C--C",
+      "C----------C",
+      "C---r--r---C",
+      "C----------C",
+      "C--C----C--C",
+      "C----------C",
+      "C---r--r---C",
+      "C----------C",
+      "C----@-----C",
+      "CCCCCCCCCCCC",
+    ],
+    warps: [{ x: 5, y: 10, to: "dragon-ridge", tx: 17, ty: 11, dir: "down" }],
+    signs: [{ x: 7, y: 10, textKey: "story.sign_sky" }],
+    npcs: [
+      { id: "legend-hooh", x: 5, y: 1, dir: "down", palette: "leader", script: "legend", ifNotFlag: "legend2_done" },
     ],
     items: [],
   },

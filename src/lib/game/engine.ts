@@ -452,6 +452,7 @@ export class Overworld {
       mon.curHP = maxHPOf(mon, sp);
       g.markSeen(mon.speciesId);
       g.markCaught(mon.speciesId);
+      g.addStat("eggsHatched");
       audio.sfx("evolve");
       await g.showDialogue([
         tr("game.field.egg_hatching"),
@@ -690,6 +691,35 @@ export class Overworld {
     }
     if (d.trainer) {
       const gym = d.trainer.badge ? BADGE_GYM[d.trainer.badge] : null;
+      // post-champion: gym leaders offer repeatable Lv.60+ rematches
+      if (gym && d.trainer.badge && g.flag("champion_done")) {
+        const { REMATCH } = await import("./maps");
+        const rdef = REMATCH[d.trainer.badge];
+        if (rdef) {
+          const go = await g.askChoice(tr("story.rematch_prompt"), [
+            { label: tr("game.field.yes"), value: "y" },
+            { label: tr("game.field.no"), value: "n" },
+          ]);
+          if (go === "y") {
+            const save = g.save!;
+            const winsBefore = save.stats?.battlesWon ?? 0;
+            await g.startTrainerBattle(rdef, this.battleWeather());
+            await waitForOverworld();
+            const won = (useGame.getState().save?.stats?.battlesWon ?? 0) > winsBefore;
+            if (won) {
+              save.stats ??= {};
+              save.stats.rematchWins = (save.stats.rematchWins ?? 0) + 1;
+              save.stats.bp = (save.stats.bp ?? 0) + 5;
+              g.setFlag("tr:" + rdef.id, 0); // repeatable
+              await g.showDialogue([tr("story.rematch_win")]);
+              g.persist();
+              void g.checkAchv();
+            }
+          }
+          this.busy = false;
+          return;
+        }
+      }
       await g.showDialogue([tr(gym ? `story.${gym}_after` : "story.trainer_lose_generic")]);
       this.busy = false;
       return;
@@ -1070,20 +1100,25 @@ export class Overworld {
     await g.showDialogue([tr("game.field.heal_done")]);
   }
 
-  /** Suicune — the Aurora Beast. One-shot static encounter at Lv.50. */
+  /** Legendary static encounters: Suicune (Lv.50) and post-game Ho-Oh (Lv.60). */
   private async scriptLegend(npc: NpcState) {
     const g = useGame.getState();
-    await g.showDialogue([tr("story.legend_meet1")]);
+    const hooh = npc.def.id === "legend-hooh";
+    const speciesId = hooh ? 250 : 245;
+    const level = hooh ? 60 : 50;
+    const flag = hooh ? "legend2_done" : "legend_done";
+    const k = hooh ? "legend2" : "legend";
+    await g.showDialogue([tr(`story.${k}_meet1`)]);
     audio.sfx("faint"); // roar
-    await g.showDialogue([tr("story.legend_meet2")]);
-    await g.startWildBattle(245, 50, "legend");
+    await g.showDialogue([tr(`story.${k}_meet2`)]);
+    await g.startWildBattle(speciesId, level, "legend");
     await waitForOverworld();
-    g.setFlag("legend_done", 1);
+    g.setFlag(flag, 1);
     this.npcs = this.npcs.filter((n) => n !== npc);
-    if (g.save?.dexCaught.includes(245)) {
-      await g.showDialogue([tr("story.legend_caught")]);
+    if (g.save?.dexCaught.includes(speciesId)) {
+      await g.showDialogue([tr(`story.${k}_caught`)]);
     } else {
-      await g.showDialogue([tr("story.legend_gone")]);
+      await g.showDialogue([tr(`story.${k}_gone`)]);
     }
     g.persist();
     void g.checkAchv();

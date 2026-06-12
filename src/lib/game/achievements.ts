@@ -53,6 +53,13 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "money-50k", icon: "🏦", cond: (s) => s.money >= 50000 },
   { id: "play-1h", icon: "⏰", cond: (s) => s.playSeconds >= 3600 },
   { id: "play-5h", icon: "🕰️", cond: (s) => s.playSeconds >= 18000 },
+  // --- post-game (v1.3)
+  { id: "tower-7", icon: "🏯", cond: (s) => stat(s, "towerBest") >= 7 },
+  { id: "dojo-3", icon: "🥋", cond: (s) => stat(s, "dojoBest") >= 3 },
+  { id: "mega-1", icon: "◆", cond: (s) => stat(s, "megaUsed") >= 1 },
+  { id: "hatch-1", icon: "🥚", cond: (s) => stat(s, "eggsHatched") >= 1 },
+  { id: "legend-duo", icon: "🌈", cond: (s) => s.dexCaught.includes(245) && s.dexCaught.includes(250) },
+  { id: "rematch-1", icon: "🔁", cond: (s) => stat(s, "rematchWins") >= 1 },
 ];
 
 /** Returns newly unlocked achievement ids (and records them on the save). */

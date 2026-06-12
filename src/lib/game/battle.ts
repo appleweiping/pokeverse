@@ -188,8 +188,8 @@ export class BattleSession {
   noExp = false;
   /** transient damage multiplier for spread moves in doubles (0.75 when multi-target) */
   private spreadMod = 1;
-  /** Mega Evolution is once per battle per side */
-  private usedMegaP = false;
+  /** Mega Evolution is once per battle per side (read by endBattle for stats) */
+  usedMegaP = false;
   /** every event ever emitted — used for battle replays */
   allEvents: BattleEvent[] = [];
   private moveMap!: Map<number, MoveData>;

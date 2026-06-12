@@ -379,6 +379,7 @@ export const useGame = create<GameStore>((set, get) => ({
     // lifetime counters + replay log
     if (result === "win") g.addStat("battlesWon");
     if (result === "caught") g.addStat("wildCaught");
+    if (session.usedMegaP) g.addStat("megaUsed");
     try {
       const { saveReplay } = await import("./replays");
       saveReplay({

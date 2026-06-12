@@ -5,6 +5,11 @@ import { useI18n } from "@/lib/i18n";
 
 const RELEASES: { v: string; date: string; zh: string[]; en: string[] }[] = [
   {
+    v: "v1.3.0", date: "2026-06-12",
+    zh: ["道馆复战：通关后八位馆主 Lv.60+ 强化队伍（可重复，+5BP/胜）", "战后新区域「天空之柱」+ 传说二期凤王 Lv.60", "新成就 ×6（塔主/道场之星/超越进化/新生/双传说/王者再临）", "终极 QA：46 图全量 BFS 回归 + 全传送落点零错误"],
+    en: ["Gym rematches: all 8 leaders with Lv.60+ teams post-champion (repeatable, +5 BP)", "New post-game area Sky Pillar + second legendary Ho-Oh Lv.60", "6 new achievements (Tower Master, Dojo Star, Beyond Evolution…)", "Final QA: full 46-map BFS regression, zero bad warp landings"],
+  },
+  {
     v: "v1.2.0", date: "2026-06-12",
     zh: ["Mega 超进化（6 种经典 Mega：妙蛙花/喷火龙Y/水箭龟/耿鬼/暴鲤龙/超梦Y）", "携带 Mega 石 + 战斗中一键变身（每场一次，结束自动复原）", "Mega 形态专属能力值/属性/特性（喷火龙Y自带日照）", "BP 商店上架 6 颗 Mega 石（15BP）", "战斗界面 ◆MEGA 切换按钮 + 变身演出"],
     en: ["Mega Evolution (6 classics: Venusaur, Charizard Y, Blastoise, Gengar, Gyarados, Mewtwo Y)", "Hold a Mega Stone + transform once per battle (auto-reverts after)", "Mega forms get their own stats/types/abilities (Charizard Y brings Drought)", "6 Mega Stones in the BP shop (15 BP)", "◆MEGA toggle in the battle UI with transform sequence"],
