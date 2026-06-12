@@ -13,7 +13,7 @@ const SAVE_KEY = "pv.save.v1";
 const SETTINGS_KEY = "pv.settings.v1";
 
 export type Phase = "title" | "naming" | "overworld" | "battle";
-export type SubMenu = "party" | "bag" | "save" | "settings" | "trainer" | "box" | "shop" | null;
+export type SubMenu = "party" | "bag" | "save" | "settings" | "trainer" | "box" | "shop" | "achv" | null;
 
 export interface DialogueState {
   lines: string[];
@@ -120,6 +120,8 @@ interface GameStore {
   runEvolutionChecks: (uids: Set<string>) => Promise<void>;
   useItemOutside: (itemId: string, partyIdx: number) => Promise<boolean>;
   buyItem: (itemId: string) => boolean;
+  addStat: (key: string, n?: number) => void;
+  checkAchv: () => Promise<void>;
 }
 
 export const useGame = create<GameStore>((set, get) => ({
@@ -345,6 +347,19 @@ export const useGame = create<GameStore>((set, get) => ({
       s.dir = "down";
     }
 
+    // lifetime counters + replay log
+    if (result === "win") g.addStat("battlesWon");
+    if (result === "caught") g.addStat("wildCaught");
+    try {
+      const { saveReplay } = await import("./replays");
+      saveReplay({
+        kind: session.kind,
+        playerTeam: s.party.map((m) => ({ speciesId: m.speciesId, level: m.level })),
+        enemyTeam: session.enemyParty.map((m) => ({ speciesId: m.speciesId, level: m.level })),
+        events: session.allEvents,
+      });
+    } catch {}
+
     g.persist();
     g.bump();
 
@@ -353,6 +368,7 @@ export const useGame = create<GameStore>((set, get) => ({
     if (result === "win" || result === "caught") {
       await g.runEvolutionChecks(session.expEarnedBy);
     }
+    void g.checkAchv();
   },
 
   runLearnFlow: async (reqs) => {
@@ -456,8 +472,10 @@ export const useGame = create<GameStore>((set, get) => ({
         audio.sfx("levelup");
         await g.showDialogue([tr("game.battle.learned", { name: monName, move: moveName })]);
       }
+      g.addStat("tmsTaught");
       g.bump();
       g.persist();
+      void g.checkAchv();
       return true;
     }
 
@@ -500,6 +518,29 @@ export const useGame = create<GameStore>((set, get) => ({
       g.bump();
     }
     return used;
+  },
+
+  addStat: (key, n = 1) => {
+    const s = get().save;
+    if (!s) return;
+    s.stats = s.stats ?? {};
+    s.stats[key] = (s.stats[key] ?? 0) + n;
+  },
+
+  checkAchv: async () => {
+    const g = get();
+    const s = g.save;
+    if (!s) return;
+    const { checkAchievements } = await import("./achievements");
+    const fresh = checkAchievements(s);
+    if (fresh.length) {
+      audio.sfx("badge");
+      for (const id of fresh.slice(0, 3)) {
+        g.showToast("🏅 " + tr(`achv.${id}.n`));
+      }
+      g.persist();
+      g.bump();
+    }
   },
 
   buyItem: (itemId) => {

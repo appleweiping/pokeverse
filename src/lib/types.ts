@@ -137,6 +137,10 @@ export interface SaveData {
   dexCaught: number[];
   playSeconds: number;
   savedAt: number;
+  /** lifetime counters for achievements */
+  stats?: Record<string, number>;
+  /** unlocked achievement ids */
+  achievements?: string[];
 }
 
 export interface ItemDef {

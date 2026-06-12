@@ -81,6 +81,8 @@ interface Battler {
   charging: { moveId: number; idx: number } | null;
   /** airborne/underground during Fly/Dig charge turn */
   semiInvuln: boolean;
+  /** faint already announced (PvP multi-mon guard) */
+  faintAnnounced: boolean;
 }
 
 function abilityOf(mon: Mon): AbilityDef | null {
@@ -125,6 +127,7 @@ async function makeBattler(mon: Mon): Promise<Battler> {
     focused: false,
     charging: null,
     semiInvuln: false,
+    faintAnnounced: false,
   };
 }
 
@@ -147,7 +150,14 @@ export class BattleSession {
   expEarnedBy = new Set<string>();
   weather: Weather = "none";
   weatherTurns = 0;
+  /** every event ever emitted — used for battle replays */
+  allEvents: BattleEvent[] = [];
   private moveMap!: Map<number, MoveData>;
+
+  private record(ev: BattleEvent[]): BattleEvent[] {
+    this.allEvents.push(...ev);
+    return ev;
+  }
 
   private constructor(kind: "wild" | "trainer", party: Mon[], enemyParty: Mon[], rng: () => number, trainer?: TrainerInfo) {
     this.kind = kind;
@@ -222,6 +232,10 @@ export class BattleSession {
 
   // ------------------------------------------------------------------ turn
   async turn(action: BattleAction): Promise<BattleEvent[]> {
+    return this.record(await this.turnInner(action));
+  }
+
+  private async turnInner(action: BattleAction): Promise<BattleEvent[]> {
     const ev: BattleEvent[] = [];
     if (this.over) return ev;
 
@@ -308,39 +322,90 @@ export class BattleSession {
   async replaceFainted(partyIdx: number): Promise<BattleEvent[]> {
     const ev: BattleEvent[] = [];
     await this.doSwitch(partyIdx, ev, false);
-    return ev;
+    return this.record(ev);
+  }
+
+  /** PvP: bring in the enemy side's replacement after a faint. */
+  async replaceFaintedEnemy(teamIdx: number): Promise<BattleEvent[]> {
+    const ev: BattleEvent[] = [];
+    const target = this.enemyParty[teamIdx];
+    if (target && target.curHP > 0) {
+      this.enemyIdx = teamIdx;
+      this.enemy = await makeBattler(target);
+      ev.push({ t: "msg", key: "game.battle.enemy_switch", params: { trainer: `%TR_online.opponent%`, name: `%SPECIES_${target.speciesId}%` } });
+      ev.push({ t: "switch", side: "enemy", view: this.enemyView() });
+      this.onSwitchIn(this.enemy, ev);
+    }
+    return this.record(ev);
+  }
+
+  /** PvP voluntary switch for the enemy (guest) side. */
+  private async pvpSwitchEnemy(teamIdx: number, ev: BattleEvent[]) {
+    const target = this.enemyParty[teamIdx];
+    if (!target || target.curHP <= 0) return;
+    ev.push({ t: "msg", key: "game.battle.come_back", params: this.nameParam(this.enemy) });
+    const out = this.enemy;
+    if (out.mon.curHP > 0) {
+      if (out.ability?.regenerator) out.mon.curHP = Math.min(out.stats[0], out.mon.curHP + Math.floor(out.stats[0] / 3));
+      if (out.ability?.naturalCure && out.mon.status) out.mon.status = null;
+    }
+    this.enemyIdx = teamIdx;
+    this.enemy = await makeBattler(target);
+    ev.push({ t: "msg", key: "game.battle.switch_in", params: this.nameParam(this.enemy) });
+    ev.push({ t: "switch", side: "enemy", view: this.enemyView() });
+    this.onSwitchIn(this.enemy, ev);
   }
 
   /**
-   * PvP turn: both move choices supplied externally (online battles run the
-   * same deterministic session on both peers with a shared RNG seed).
+   * PvP turn: both actions supplied externally (online battles run the same
+   * deterministic session on both peers with a shared RNG seed). Switches
+   * resolve before moves, as in the official games.
    */
-  async pvpTurn(playerMoveIdx: number, enemyMoveIdx: number): Promise<BattleEvent[]> {
+  async pvpTurn(playerAct: BattleAction, enemyAct: BattleAction): Promise<BattleEvent[]> {
     const ev: BattleEvent[] = [];
-    if (this.over) return ev;
-    const pMove = this.resolveMoveChoice(this.player, playerMoveIdx);
-    const eMove = this.resolveEnemyMoveChoice(enemyMoveIdx);
-    const pSpe = this.effSpeed(this.player);
-    const eSpe = this.effSpeed(this.enemy);
-    const playerFirst =
-      pMove.move.pr !== eMove.move.pr ? pMove.move.pr > eMove.move.pr
-      : pSpe !== eSpe ? pSpe > eSpe : this.rng() < 0.5;
-    const order: [Battler, Battler, { move: MoveData; idx: number }][] = playerFirst
-      ? [[this.player, this.enemy, pMove], [this.enemy, this.player, eMove]]
-      : [[this.enemy, this.player, eMove], [this.player, this.enemy, pMove]];
-    for (const [att, def, mv] of order) {
-      if (this.over) break;
-      if (att.mon.curHP <= 0) continue;
-      await this.executeMove(att, def, mv.move, mv.idx, ev);
-      if (def.mon.curHP <= 0 || att.mon.curHP <= 0) {
+    if (this.over) return this.record(ev);
+
+    // ---- switches happen first
+    if (playerAct.kind === "switch") await this.doSwitch(playerAct.partyIdx, ev, true);
+    if (enemyAct.kind === "switch") await this.pvpSwitchEnemy(enemyAct.partyIdx, ev);
+
+    const pMoving = playerAct.kind === "move";
+    const eMoving = enemyAct.kind === "move";
+    const pMove = pMoving ? this.resolveMoveChoice(this.player, playerAct.index) : null;
+    const eMove = eMoving ? this.resolveEnemyMoveChoice(enemyAct.index) : null;
+
+    if (pMove && eMove) {
+      const pSpe = this.effSpeed(this.player);
+      const eSpe = this.effSpeed(this.enemy);
+      const playerFirst =
+        pMove.move.pr !== eMove.move.pr ? pMove.move.pr > eMove.move.pr
+        : pSpe !== eSpe ? pSpe > eSpe : this.rng() < 0.5;
+      const order: [Battler, Battler, { move: MoveData; idx: number }][] = playerFirst
+        ? [[this.player, this.enemy, pMove], [this.enemy, this.player, eMove]]
+        : [[this.enemy, this.player, eMove], [this.player, this.enemy, pMove]];
+      for (const [att, def, mv] of order) {
+        if (this.over) break;
+        if (att.mon.curHP <= 0) continue;
+        await this.executeMove(att, def, mv.move, mv.idx, ev);
         this.resolvePvpFaint(ev);
         if (this.over) break;
       }
+    } else if (pMove) {
+      if (this.player.mon.curHP > 0) {
+        await this.executeMove(this.player, this.enemy, pMove.move, pMove.idx, ev);
+        this.resolvePvpFaint(ev);
+      }
+    } else if (eMove) {
+      if (this.enemy.mon.curHP > 0) {
+        await this.executeMove(this.enemy, this.player, eMove.move, eMove.idx, ev);
+        this.resolvePvpFaint(ev);
+      }
     }
+
     if (!this.over) {
       this.pvpEndOfTurn(ev);
     }
-    return ev;
+    return this.record(ev);
   }
 
   private resolveEnemyMoveChoice(idx: number): { move: MoveData; idx: number } {
@@ -354,16 +419,19 @@ export class BattleSession {
     return { move: this.moveMap.get(chosen.id)!, idx };
   }
 
-  /** 1v1 PvP faint check: whoever drops to 0 ends the battle. */
+  /** PvP faint check: a side loses when its whole team is out. */
   private resolvePvpFaint(ev: BattleEvent[]) {
-    if (this.enemy.mon.curHP <= 0) {
+    if (this.enemy.mon.curHP <= 0 && !this.enemy.faintAnnounced) {
+      this.enemy.faintAnnounced = true;
       ev.push({ t: "anim", kind: "faint", side: "enemy" });
       ev.push({ t: "msg", key: "game.battle.enemy_fainted", params: this.nameParam(this.enemy) });
-      this.finish(ev, "win");
-    } else if (this.player.mon.curHP <= 0) {
+      if (this.enemyParty.every((m) => m.curHP <= 0)) this.finish(ev, "win");
+    }
+    if (!this.over && this.player.mon.curHP <= 0 && !this.player.faintAnnounced) {
+      this.player.faintAnnounced = true;
       ev.push({ t: "anim", kind: "faint", side: "player" });
       ev.push({ t: "msg", key: "game.battle.fainted", params: this.nameParam(this.player) });
-      this.finish(ev, "lose");
+      if (this.party.every((m) => m.curHP <= 0)) this.finish(ev, "lose");
     }
   }
 

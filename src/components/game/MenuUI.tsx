@@ -6,6 +6,7 @@ import { getDexMap, getMoveMap, localName, MAX_DEX_ID } from "@/lib/data/dex";
 import type { DexEntry, Mon, MoveData } from "@/lib/types";
 import { NATURES, expForLevel } from "@/lib/data/formulas";
 import { abilityName } from "@/lib/data/abilities";
+import { ACHIEVEMENTS } from "@/lib/game/achievements";
 import { maxHPOf, statsOf } from "@/lib/game/factory";
 import { ITEMS, MART_STOCK } from "@/lib/game/items";
 import type { ItemDef } from "@/lib/types";
@@ -487,6 +488,39 @@ export default function MenuUI() {
             </div>
           </Panel>
         );
+      // ---------------------------------------------------------------- achievements
+      case "achv": {
+        const unlocked = new Set(save.achievements ?? []);
+        return (
+          <Panel title={t("achv.title")} onBack={() => close(null)}>
+            <div className="mb-3 text-center text-sm font-bold text-amber-300">
+              {unlocked.size} / {ACHIEVEMENTS.length}
+            </div>
+            <div className="grid max-h-[60vh] grid-cols-1 gap-1.5 overflow-y-auto sm:grid-cols-2">
+              {ACHIEVEMENTS.map((a) => {
+                const on = unlocked.has(a.id);
+                return (
+                  <div
+                    key={a.id}
+                    className={`flex items-center gap-2.5 rounded-lg px-3 py-2 ${
+                      on ? "bg-amber-400/15 ring-1 ring-amber-400/40" : "bg-slate-800/70 opacity-60"
+                    }`}
+                  >
+                    <span className={`text-xl ${on ? "" : "grayscale"}`}>{a.icon}</span>
+                    <div className="min-w-0">
+                      <b className={`block truncate text-[13px] ${on ? "text-amber-200" : "text-slate-300"}`}>
+                        {t(`achv.${a.id}.n`)}
+                      </b>
+                      <span className="block truncate text-[11px] text-slate-400">{t(`achv.${a.id}.d`)}</span>
+                    </div>
+                    {on && <span className="ml-auto text-amber-300">✓</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </Panel>
+        );
+      }
       // ---------------------------------------------------------------- shop
       case "shop":
         return (
@@ -530,6 +564,7 @@ export default function MenuUI() {
     [t("game.menu.party"), () => g.setSubmenu("party")],
     [t("game.menu.bag"), () => g.setSubmenu("bag")],
     [t("game.menu.trainer"), () => g.setSubmenu("trainer")],
+    [t("achv.title"), () => g.setSubmenu("achv")],
     [t("game.menu.dex"), () => window.open("/pokedex", "_blank")],
     [t("game.menu.save"), () => g.setSubmenu("save")],
     [t("game.menu.settings"), () => g.setSubmenu("settings")],

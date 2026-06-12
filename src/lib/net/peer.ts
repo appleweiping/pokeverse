@@ -6,12 +6,15 @@ import type { Mon } from "../types";
  * battle/trade traffic flows directly between browsers over WebRTC.
  */
 
+import type { BattleAction } from "../game/battle";
+
 export type NetMsg =
   | { type: "hello"; name: string }
   | { type: "mode"; mode: "battle" | "trade" }
-  | { type: "pick"; mon: Mon }
+  | { type: "team"; mons: Mon[] }
   | { type: "seed"; seed: number }
-  | { type: "action"; turn: number; moveIdx: number }
+  | { type: "action"; turn: number; act: BattleAction }
+  | { type: "replace"; side: "host" | "guest"; idx: number }
   | { type: "trade-offer"; mon: Mon }
   | { type: "trade-confirm" }
   | { type: "surrender" }

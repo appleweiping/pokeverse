@@ -413,7 +413,12 @@ export function Footer() {
         </div>
         <p>{t("site.footer.disclaimer")}</p>
         <p>{t("site.footer.fan")}</p>
-        <p className="mt-2 text-slate-600">{t("site.footer.credits")} · Next.js + Canvas + Web Audio</p>
+        <p className="mt-2 text-slate-600">
+          {t("site.footer.credits")} · Next.js + Canvas + Web Audio ·{" "}
+          <Link className="underline-offset-2 hover:text-slate-400 hover:underline" href="/changelog">Changelog</Link> ·{" "}
+          <Link className="underline-offset-2 hover:text-slate-400 hover:underline" href="/replays">Replays</Link> ·{" "}
+          <a className="underline-offset-2 hover:text-slate-400 hover:underline" href="https://github.com/appleweiping/pokeverse" target="_blank" rel="noreferrer">GitHub</a>
+        </p>
       </div>
     </footer>
   );

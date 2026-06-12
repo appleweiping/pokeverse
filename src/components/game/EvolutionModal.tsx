@@ -31,6 +31,7 @@ export default function EvolutionModal() {
       const mon = save?.party.find((m) => m.uid === evo.uid) ?? save?.box.find((m) => m.uid === evo.uid);
       if (mon) await evolveMon(mon, evo.toId);
       useGame.getState().markCaught(evo.toId);
+      useGame.getState().addStat("evolutions");
       audio.stopMusic();
       audio.sfx("evolve");
       setStage("done");
