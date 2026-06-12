@@ -23,6 +23,7 @@ export const ITEMS: Record<string, ItemDef> = {
   "leaf-stone":     { id: "leaf-stone", category: "battle", price: 3000, evoItem: "leaf-stone" },
   "moon-stone":     { id: "moon-stone", category: "battle", price: 3000, evoItem: "moon-stone" },
   "town-map":       { id: "town-map", category: "key", price: 0 },
+  "old-rod":        { id: "old-rod", category: "key", price: 0 },
   // ---- held berries (auto-trigger in battle) ----
   "oran-berry":     { id: "oran-berry", category: "berry", price: 100, berry: { healBelow: 0.5, healAmount: 10 } },
   "sitrus-berry":   { id: "sitrus-berry", category: "berry", price: 300, berry: { healBelow: 0.5, healFraction: 0.25 } },

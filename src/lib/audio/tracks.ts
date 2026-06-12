@@ -432,6 +432,77 @@ K:2 K:2 S:2 H:2 K:2 H:2 S:2 H:2 K:2 K:2 S:2 H:2 K:2 S:2 S:2 S:2`,
     ],
   },
 
+  // ======================================================== SURF (C major, rolling waves)
+  surf: {
+    bpm: 112,
+    channels: [
+      {
+        wave: "square", vol: 0.18,
+        notes: `
+E5:2 G5:2 C6:4 G5:2 E5:2 G5:4
+F5:2 A5:2 C6:4 A5:2 F5:2 A5:4
+E5:2 G5:2 C6:4 D6:2 C6:2 G5:4
+A5:4 G5:4 F5:4 E5:4`,
+      },
+      {
+        wave: "square", vol: 0.09,
+        notes: `
+C4:2 E4:2 G4:2 E4:2 C4:2 E4:2 G4:2 E4:2
+F4:2 A4:2 C5:2 A4:2 F4:2 A4:2 C5:2 A4:2
+C4:2 E4:2 G4:2 E4:2 C4:2 E4:2 G4:2 E4:2
+F4:2 A4:2 C5:2 A4:2 G4:2 B4:2 D5:2 B4:2`,
+      },
+      {
+        wave: "triangle", vol: 0.5,
+        notes: `
+C3:4 G2:4 C3:4 G2:4
+F2:4 C3:4 F2:4 C3:4
+C3:4 G2:4 C3:4 G2:4
+F2:4 F2:4 G2:4 G2:4`,
+      },
+      {
+        wave: "noise", vol: 0.2,
+        notes: `H:4 H:2 H:2 H:4 H:4 H:4 H:2 H:2 H:4 H:4 H:4 H:2 H:2 H:4 H:4 H:4 H:2 H:2 K:4 S:4`,
+      },
+    ],
+  },
+
+  // ======================================================== AURORA ADMIN (E minor, urgent)
+  aurora_admin: {
+    bpm: 176,
+    channels: [
+      {
+        wave: "square", vol: 0.2,
+        notes: `
+E5:1 F#5:1 G5:1 A5:1 B5:2 E5:2 B5:2 E5:2 B5:2 G5:2
+C6:2 B5:2 A5:2 G5:2 A5:2 G5:2 F#5:2 E5:2
+D#5:2 E5:2 F#5:2 G5:2 A5:2 B5:2 C6:2 D#6:2
+E6:4 B5:4 G5:4 E5:4`,
+      },
+      {
+        wave: "square", vol: 0.09,
+        notes: `
+E4:2 G4:2 B4:2 G4:2 E4:2 G4:2 B4:2 G4:2
+C4:2 E4:2 A4:2 E4:2 C4:2 E4:2 A4:2 E4:2
+B3:2 D#4:2 F#4:2 D#4:2 B3:2 D#4:2 F#4:2 D#4:2
+E4:2 G4:2 B4:2 G4:2 E4:2 B4:2 E5:2 B4:2`,
+      },
+      {
+        wave: "triangle", vol: 0.55,
+        notes: `
+E2:2 E2:2 E2:2 E2:2 E2:2 E2:2 E2:2 E2:2
+C2:2 C2:2 C2:2 C2:2 A1:2 A1:2 A1:2 A1:2
+B1:2 B1:2 B1:2 B1:2 B1:2 B1:2 B1:2 B1:2
+E2:2 E2:2 B1:2 B1:2 E2:2 E2:2 E2:8`,
+      },
+      {
+        wave: "noise", vol: 0.4,
+        notes: `K:2 K:2 S:2 H:2 K:2 H:2 S:2 K:2 K:2 K:2 S:2 H:2 K:2 H:2 S:2 K:2
+K:2 K:2 S:2 H:2 K:2 H:2 S:2 K:2 K:2 S:2 K:2 S:2 K:2 S:2 S:2 S:2`,
+      },
+    ],
+  },
+
   // ======================================================== EVOLUTION (rising)
   evolution: {
     bpm: 132,

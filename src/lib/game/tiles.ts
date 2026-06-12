@@ -17,6 +17,7 @@ export enum T {
   FLOOR, IWALL, RUG, MAT, TABLE, SHELF, BED, PC, COUNTER, HEALER,
   CAVE_FLOOR, CAVE_WALL, LEDGE, SAND, GYM_FLOOR, STATUE,
   CUT_TREE, ROCK_SMASH, BARRIER, SWITCH, BARRIER_OFF,
+  SWAMP, WARP_PAD,
   COUNT,
 }
 
@@ -568,6 +569,40 @@ function paintTile(c: Ctx, t: T, frame: number, seed: number) {
       c.fillStyle = pressed ? "#9c2c34" : "#f07868";
       px(c, 5, 5, 6, 2);
       c.fillStyle = "#f8d048"; px(c, 7, 7, 2, 2);
+      break;
+    }
+    case T.SWAMP: {
+      // toxic marsh — purple sludge with rising bubbles
+      c.fillStyle = "#6a4a8c";
+      px(c, 0, 0, 16, 16);
+      c.fillStyle = "#5a3a78";
+      px(c, 1, 2, 5, 3); px(c, 9, 6, 5, 3); px(c, 3, 11, 6, 3);
+      c.fillStyle = "#7e5aa4";
+      px(c, 7, 1, 4, 2); px(c, 2, 7, 3, 2); px(c, 11, 12, 3, 2);
+      // bubbles (animated)
+      const bo = frame === 0 ? 0 : 1;
+      c.fillStyle = "#b08ad0";
+      px(c, 4 + bo, 4 - bo, 2, 2); px(c, 11 - bo, 9 + bo, 2, 2);
+      c.fillStyle = "#d8c0ec";
+      px(c, 5 + bo, 4 - bo, 1, 1); px(c, 12 - bo, 9 + bo, 1, 1);
+      if (frame === 1) { c.fillStyle = "#b08ad0"; px(c, 8, 13, 1, 1); }
+      break;
+    }
+    case T.WARP_PAD: {
+      // psychic teleport pad — glowing cyan ring on gym floor
+      c.fillStyle = P.gym;
+      px(c, 0, 0, 16, 16);
+      c.fillStyle = P.gymDk; px(c, 0, 0, 8, 8); px(c, 8, 8, 8, 8);
+      c.fillStyle = P.outline; px(c, 2, 2, 12, 12);
+      c.fillStyle = "#1e6a78";
+      px(c, 3, 3, 10, 10);
+      const glow = frame === 0;
+      c.fillStyle = glow ? "#40d8e8" : "#2ba8c0";
+      px(c, 4, 4, 8, 1); px(c, 4, 11, 8, 1); px(c, 4, 4, 1, 8); px(c, 11, 4, 1, 8);
+      c.fillStyle = glow ? "#a8f4fc" : "#6ce0f0";
+      px(c, 7, 7, 2, 2);
+      c.fillStyle = glow ? "#40d8e8" : "#1e6a78";
+      px(c, 6, 6, 1, 1); px(c, 9, 9, 1, 1); px(c, 9, 6, 1, 1); px(c, 6, 9, 1, 1);
       break;
     }
   }

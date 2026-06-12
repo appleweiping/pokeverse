@@ -335,9 +335,9 @@ export class Overworld {
       this.busy = false;
       return;
     }
-    // wild encounter
+    // wild encounter (tall grass, or open water while surfing)
     const tile = tileAt(this.map, this.tx, this.ty);
-    if (ENCOUNTER_TILES.has(tile) && this.map.encounters && save && save.party.some((m) => m.curHP > 0)) {
+    if ((ENCOUNTER_TILES.has(tile) || tile === T.WATER) && this.map.encounters && save && save.party.some((m) => m.curHP > 0)) {
       if (Math.random() < this.map.encounters.rate) {
         const { table } = this.map.encounters;
         const total = table.reduce((a, e) => a + e[1], 0);
@@ -410,6 +410,21 @@ export class Overworld {
     if (sign) {
       audio.sfx("select");
       this.busy = true;
+      if (sign.textKey === "story.legend_spot") {
+        // legendary omen — deepens once Team Aurora's plot has unfolded
+        const ready = (g.save?.badges.length ?? 0) >= 6 && g.flag("tr:auroraadmin2") && g.flag("tr:auroraadmin3");
+        if (ready) {
+          await g.showDialogue([tr("story.legend_omen1")]);
+          audio.sfx("faint"); // distant roar
+          await g.showDialogue([tr("story.legend_omen2")]);
+          g.setFlag("legend_omen", 1);
+          g.persist();
+        } else {
+          await g.showDialogue([tr("story.legend_quiet")]);
+        }
+        this.busy = false;
+        return;
+      }
       await g.showDialogue([tr("game.field.sign") + " " + tr(sign.textKey)]);
       this.busy = false;
       return;
@@ -472,6 +487,18 @@ export class Overworld {
     }
     if (tile === T.WATER) {
       this.busy = true;
+      const hasRod = (g.save?.bag["old-rod"] ?? 0) > 0;
+      if (hasRod && this.map.fishing) {
+        const choice = await g.askChoice(tr("game.field.fish_prompt"), [
+          { label: tr("game.field.fish_cast"), value: "fish" },
+          { label: tr("common.cancel"), value: "no" },
+        ]);
+        if (choice === "fish") {
+          await this.fish();
+          this.busy = false;
+          return;
+        }
+      }
       if (this.canField(57, "tidal")) {
         await g.showDialogue([tr("game.field.surf_prompt")]);
       } else {
@@ -479,6 +506,28 @@ export class Overworld {
       }
       this.busy = false;
       return;
+    }
+  }
+
+  /** Old Rod fishing at a water edge. */
+  private async fish() {
+    const g = useGame.getState();
+    const table = this.map.fishing;
+    if (!table) return;
+    await g.showDialogue([tr("game.field.fish_wait")]);
+    if (Math.random() < 0.75) {
+      audio.sfx("encounter");
+      await g.showDialogue([tr("game.field.fish_bite")]);
+      const total = table.table.reduce((a, e) => a + e[1], 0);
+      let roll = Math.random() * total;
+      let pick = table.table[0];
+      for (const e of table.table) { roll -= e[1]; if (roll <= 0) { pick = e; break; } }
+      const level = pick[2] + Math.floor(Math.random() * (pick[3] - pick[2] + 1));
+      await g.startWildBattle(pick[0], level);
+      await waitForOverworld();
+    } else {
+      audio.sfx("cancel");
+      await g.showDialogue([tr("game.field.fish_nothing")]);
     }
   }
 
@@ -540,6 +589,19 @@ export class Overworld {
         break;
       }
       case "mom": await this.scriptMom(); break;
+      case "rod": {
+        if (!g.flag("got_rod")) {
+          await g.showDialogue([tr("story.rod_give1"), tr("story.rod_give2")]);
+          g.giveItem("old-rod", 1);
+          g.setFlag("got_rod", 1);
+          audio.sfx("catch");
+          await g.showDialogue([tr("game.field.bag_item", { item: tr("items.old-rod.n"), n: 1 })]);
+          g.persist();
+        } else {
+          await g.showDialogue([tr("story.rod_hint")]);
+        }
+        break;
+      }
       default:
         if (d.dialogKeys?.length) {
           await g.showDialogue(d.dialogKeys.map((k) => tr(k)));

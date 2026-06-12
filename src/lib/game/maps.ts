@@ -14,6 +14,7 @@ export const LEGEND: Record<string, T> = {
   E: T.BED, P: T.PC, c: T.COUNTER, h: T.HEALER,
   "-": T.CAVE_FLOOR, C: T.CAVE_WALL, L: T.LEDGE, S: T.SAND, F: T.GYM_FLOOR, X: T.STATUE,
   x: T.CUT_TREE, o: T.ROCK_SMASH, Z: T.BARRIER, z: T.SWITCH,
+  q: T.SWAMP, "@": T.WARP_PAD,
 };
 
 export interface WarpDef {
@@ -48,7 +49,7 @@ export interface NpcDef {
   dir: Dir;
   palette: string;
   dialogKeys?: string[];
-  script?: "professor" | "nurse" | "mart" | "mom" | "rivalIdle";
+  script?: "professor" | "nurse" | "mart" | "mom" | "rivalIdle" | "rod";
   trainer?: TrainerDef;
   /** only visible when this flag is truthy / falsy */
   ifFlag?: string;
@@ -72,6 +73,8 @@ export interface MapDef {
   npcs: NpcDef[];
   items: ItemSpot[];
   encounters?: EncounterTable;
+  /** fishing encounter table (Old Rod at water edges) */
+  fishing?: EncounterTable;
 }
 
 export interface CompiledMap extends MapDef {
@@ -173,6 +176,60 @@ const TRAINERS = {
     team: [{ speciesId: 42, level: 23 }, { speciesId: 24, level: 23 }, { speciesId: 110, level: 24 }],
     prize: 2000, theme: "aurora",
     reward: { item: "thunder-stone", qty: 1 },
+  } as TrainerDef,
+  swimmer2: {
+    id: "swimmer2", nameKey: "story.tn.swimmer2", preKey: "story.trainer_swimmer2_pre",
+    loseKey: "story.trainer_swimmer2_lose",
+    team: [{ speciesId: 72, level: 26 }, { speciesId: 120, level: 27 }], prize: 810,
+  } as TrainerDef,
+  swimmer3: {
+    id: "swimmer3", nameKey: "story.tn.swimmer2", preKey: "story.trainer_swimmer2_pre",
+    loseKey: "story.trainer_swimmer2_lose",
+    team: [{ speciesId: 90, level: 27 }, { speciesId: 116, level: 27 }], prize: 810,
+  } as TrainerDef,
+  aurorag4: {
+    id: "aurorag4", nameKey: "story.tn.aurora_grunt", preKey: "story.aurora_g4_pre",
+    loseKey: "story.aurora_g4_lose",
+    team: [{ speciesId: 41, level: 27 }, { speciesId: 24, level: 28 }], prize: 720,
+    theme: "aurora", vanish: true,
+  } as TrainerDef,
+  auroraadmin2: {
+    id: "auroraadmin2", nameKey: "story.tn.aurora_admin2", preKey: "story.aurora_admin2_pre",
+    loseKey: "story.aurora_admin2_lose",
+    team: [{ speciesId: 87, level: 30 }, { speciesId: 91, level: 30 }, { speciesId: 124, level: 31 }],
+    prize: 3000, theme: "aurora_admin",
+    reward: { item: "water-stone", qty: 1 },
+  } as TrainerDef,
+  aurorag5: {
+    id: "aurorag5", nameKey: "story.tn.aurora_grunt", preKey: "story.aurora_g5_pre",
+    loseKey: "story.aurora_g5_lose",
+    team: [{ speciesId: 109, level: 28 }, { speciesId: 42, level: 28 }], prize: 740,
+    theme: "aurora", vanish: true,
+  } as TrainerDef,
+  aurorag6: {
+    id: "aurorag6", nameKey: "story.tn.aurora_grunt", preKey: "story.aurora_g6_pre",
+    loseKey: "story.aurora_g6_lose",
+    team: [{ speciesId: 24, level: 29 }, { speciesId: 110, level: 29 }], prize: 760,
+    theme: "aurora", vanish: true,
+  } as TrainerDef,
+  auroraadmin3: {
+    id: "auroraadmin3", nameKey: "story.tn.aurora_admin3", preKey: "story.aurora_admin3_pre",
+    loseKey: "story.aurora_admin3_lose",
+    team: [{ speciesId: 64, level: 31 }, { speciesId: 122, level: 31 }, { speciesId: 97, level: 32 }],
+    prize: 3200, theme: "aurora_admin",
+    reward: { item: "leaf-stone", qty: 1 },
+  } as TrainerDef,
+  gym5: {
+    id: "gym5", nameKey: "story.tn.gym5", preKey: "story.gym5_pre",
+    loseKey: "story.gym5_win",
+    team: [{ speciesId: 49, level: 29 }, { speciesId: 89, level: 30 }, { speciesId: 110, level: 31 }],
+    prize: 5200, badge: "venom",
+  } as TrainerDef,
+  gym6: {
+    id: "gym6", nameKey: "story.tn.gym6", preKey: "story.gym6_pre",
+    loseKey: "story.gym6_win",
+    team: [{ speciesId: 64, level: 31 }, { speciesId: 80, level: 32 }, { speciesId: 97, level: 34 }],
+    prize: 5800, badge: "mind",
   } as TrainerDef,
 };
 
@@ -594,7 +651,7 @@ export const MAPS: Record<string, MapDef> = {
       { x: 8, y: 0, to: "route-2", tx: 7, ty: 22, dir: "up" },
       { x: 9, y: 0, to: "route-2", tx: 7, ty: 22, dir: "up" },
     ],
-    signs: [],
+    signs: [{ x: 9, y: 6, textKey: "story.legend_spot" }],
     npcs: [
       { id: "tr-hiker1", x: 12, y: 6, dir: "left", palette: "oldman", trainer: TRAINERS.hiker1 },
       { id: "cave-hiker", x: 4, y: 11, dir: "right", palette: "boy", dialogKeys: ["story.npc_cave1"] },
@@ -692,7 +749,7 @@ export const MAPS: Record<string, MapDef> = {
       "T~~~~~~~~~~~~~~~~~~~~~~~~T",
       "T~~~~SSSS~~~~~~~~SSSS~~~~T",
       "TSSSSSSSSSSSSSSSSSSSSSSSST",
-      "TTTTTTTTTTTTTTTTTTTTTTTTTT",
+      "TTTTTTTTTTTTSSTTTTTTTTTTTT",
     ],
     warps: [
       { x: 12, y: 0, to: "route-2", tx: 7, ty: 22, dir: "down" },
@@ -701,13 +758,20 @@ export const MAPS: Record<string, MapDef> = {
       { x: 19, y: 4, to: "tidal-mart", tx: 5, ty: 5, dir: "up" },
       { x: 10, y: 10, to: "gym-tidal", tx: 6, ty: 10, dir: "up" },
       { x: 25, y: 6, to: "route-3", tx: 1, ty: 8, dir: "right" },
+      { x: 12, y: 17, to: "sea-route", tx: 9, ty: 1, dir: "down" },
+      { x: 13, y: 17, to: "sea-route", tx: 10, ty: 1, dir: "down" },
     ],
     signs: [{ x: 13, y: 11, textKey: "story.sign_tidal_gym" }],
     npcs: [
       { id: "tidal-girl", x: 8, y: 7, dir: "down", palette: "girl", dialogKeys: ["story.npc_tidal1"] },
       { id: "tidal-old", x: 20, y: 7, dir: "left", palette: "oldman", dialogKeys: ["story.npc_tidal2"] },
+      { id: "rod-giver", x: 5, y: 16, dir: "right", palette: "oldman", script: "rod" },
     ],
     items: [],
+    fishing: {
+      rate: 1,
+      table: [[129, 60, 10, 20], [72, 25, 15, 25], [120, 15, 15, 25]],
+    },
   },
 
   // ========================================================= TIDAL CENTER
@@ -1168,6 +1232,242 @@ export const MAPS: Record<string, MapDef> = {
       { x: 13, y: 2, item: "ultra-ball", qty: 2, flag: "item:ah-ub" },
       { x: 2, y: 7, item: "revive", qty: 1, flag: "item:ah-rv" },
       { x: 13, y: 9, item: "tm-188", qty: 1, flag: "item:ah-tm188" },
+    ],
+  },
+
+  // ========================================================= SEA ROUTE (surf)
+  "sea-route": {
+    id: "sea-route",
+    nameKey: "story.sign_sea",
+    music: "surf",
+    grid: [
+      "TTTTTTTTTSSTTTTTTTTT",
+      "T~~~~~~~SSSS~~~~~~~T",
+      "T~~~~~~~~SS~~~~~~~~T",
+      "T~~~~~~~~~~~~~~~~~~T",
+      "T~~~~SS~~~~~~~~~~~~T",
+      "T~~~~SS~~~~~~~~~~~~T",
+      "T~~~~~~~~~~~~~~~~~~T",
+      "T~~~~~~~~~~~~SS~~~~T",
+      "T~~~~~~~~~~~~SS~~~~T",
+      "T~~~~~~~~~~~~~~~~~~T",
+      "T~~~~~~~~~~~~~~~~~~T",
+      "T~~~SS~~~~~~~~~~~~~T",
+      "T~~~SS~~~~~~~~~~~~~T",
+      "T~~~~~~~~~~~~~~~~~~T",
+      "T~~~~~~~~SSSS~~~~~~T",
+      "T~~~~~~~~SSSS~~~~~~T",
+      "T~~~~~~~~SSSS~~~~~~T",
+      "T~~~~~~~~~~~~~~~~~~T",
+      "T~~~~~~~~~~~~~~~~~~T",
+      "T~~~~~~~~~~~~~~~~~~T",
+      "T~~~~~~SS~~~~~~~~~~T",
+      "T~~~~~~SS~~~~~~~~~~T",
+      "T~~~~~~~~~~~~~~~~~~T",
+      "T~~~~~~~~~~~~~~~~~~T",
+      "T~~~~~~~~~~~~~~~~~~T",
+      "T~~~~~~~~SS~~~~~~~~T",
+      "T~~~~~~~SSSS~~~~~~~T",
+      "TTTTTTTTTSSTTTTTTTTT",
+    ],
+    warps: [
+      { x: 9, y: 0, to: "tidal-town", tx: 12, ty: 16, dir: "up" },
+      { x: 10, y: 0, to: "tidal-town", tx: 13, ty: 16, dir: "up" },
+      { x: 9, y: 27, to: "amethyst-port", tx: 13, ty: 1, dir: "down" },
+      { x: 10, y: 27, to: "amethyst-port", tx: 14, ty: 1, dir: "down" },
+    ],
+    signs: [],
+    npcs: [
+      { id: "tr-swimmer2", x: 5, y: 5, dir: "right", palette: "lass", trainer: TRAINERS.swimmer2 },
+      { id: "tr-aurorag4", x: 13, y: 8, dir: "left", palette: "rival", trainer: TRAINERS.aurorag4, ifNotFlag: "tr:aurorag4" },
+      { id: "tr-swimmer3", x: 4, y: 12, dir: "right", palette: "boy", trainer: TRAINERS.swimmer3 },
+      { id: "tr-admin2", x: 10, y: 15, dir: "down", palette: "leader", trainer: TRAINERS.auroraadmin2, ifNotFlag: "tr:auroraadmin2" },
+    ],
+    items: [
+      { x: 7, y: 20, item: "max-potion", qty: 1, flag: "item:sr-mp" },
+      { x: 11, y: 16, item: "tm-58", qty: 1, flag: "item:sr-tm58" },
+    ],
+    encounters: {
+      rate: 0.1,
+      table: [
+        [72, 40, 25, 30], [86, 20, 25, 29], [120, 15, 26, 30], [90, 15, 26, 30], [226, 10, 28, 32],
+      ],
+    },
+    fishing: {
+      rate: 1,
+      table: [[129, 40, 15, 25], [72, 25, 22, 28], [90, 15, 24, 28], [120, 10, 24, 28], [116, 10, 24, 28]],
+    },
+  },
+
+  // ========================================================= AMETHYST PORT
+  "amethyst-port": {
+    id: "amethyst-port",
+    nameKey: "story.sign_amethyst",
+    music: "town",
+    grid: [
+      "TTTTTTTTTTTTTSSTTTTTTTTTTT",
+      "T............SS..........T",
+      "T..GGGGGGG......RRRRR....T",
+      "T..GGGGGGG......RRRRR....T",
+      "T..GGGGGGG......RRRRR....T",
+      "T..WwwDwwW......WwDwW....T",
+      "T.....,...........,......T",
+      "T,,,,,,,,,,,,,,,,,,,,,,,,T",
+      "T..BBBBB......BBBBB......T",
+      "T..BBBBB......BBBBB......T",
+      "T..WwDwW......WwDwW......T",
+      "T....,..........,........T",
+      "T,,,,,,,,,,,,,,,,,,,,,,,,,",
+      "T........s...............T",
+      "T..ff..............ff....T",
+      "T........................T",
+      "T........................T",
+      "TTTTTTTTTTTTTTTTTTTTTTTTTT",
+    ],
+    warps: [
+      { x: 13, y: 0, to: "sea-route", tx: 9, ty: 26, dir: "up" },
+      { x: 14, y: 0, to: "sea-route", tx: 10, ty: 26, dir: "up" },
+      { x: 6, y: 5, to: "gym-venom", tx: 6, ty: 9, dir: "up" },
+      { x: 18, y: 5, to: "amethyst-center", tx: 6, ty: 4, dir: "up" },
+      { x: 5, y: 10, to: "amethyst-mart", tx: 5, ty: 4, dir: "up" },
+      { x: 25, y: 12, to: "star-tower", tx: 7, ty: 13, dir: "right" },
+    ],
+    signs: [{ x: 9, y: 13, textKey: "story.sign_amethyst" }],
+    npcs: [
+      { id: "ap-girl", x: 16, y: 6, dir: "down", palette: "girl", dialogKeys: ["story.npc_amethyst1"] },
+      { id: "ap-old", x: 7, y: 14, dir: "right", palette: "oldman", dialogKeys: ["story.npc_amethyst2"] },
+    ],
+    items: [],
+    fishing: {
+      rate: 1,
+      table: [[129, 50, 15, 25], [72, 30, 22, 28], [116, 20, 24, 28]],
+    },
+  },
+  "amethyst-center": {
+    id: "amethyst-center",
+    nameKey: "story.sign_amethyst",
+    music: "center",
+    indoor: true,
+    grid: [
+      "IIIIIIIIIIII",
+      "IP________hI",
+      "I___cccc___I",
+      "I__________I",
+      "I__________I",
+      "I_____m____I",
+      "IIIIIIIIIIII",
+    ],
+    warps: [{ x: 6, y: 5, to: "amethyst-port", tx: 18, ty: 6, dir: "down" }],
+    signs: [],
+    npcs: [{ id: "nurse5", x: 5, y: 1, dir: "down", palette: "nurse", script: "nurse" }],
+    items: [],
+  },
+  "amethyst-mart": {
+    id: "amethyst-mart",
+    nameKey: "story.sign_amethyst",
+    music: "center",
+    indoor: true,
+    grid: [
+      "IIIIIIIIII",
+      "Ibbb_____I",
+      "I________I",
+      "I__cc____I",
+      "I________I",
+      "I____m___I",
+      "IIIIIIIIII",
+    ],
+    warps: [{ x: 5, y: 5, to: "amethyst-port", tx: 5, ty: 11, dir: "down" }],
+    signs: [],
+    npcs: [{ id: "clerk5", x: 3, y: 2, dir: "down", palette: "clerk", script: "mart" }],
+    items: [],
+  },
+
+  // ========================================================= VENOM GYM (swamp maze)
+  "gym-venom": {
+    id: "gym-venom",
+    nameKey: "story.sign_gym5",
+    music: "gym",
+    indoor: true,
+    grid: [
+      "IIIIIIIIIIII",
+      "IFFFFFFFFFFI",
+      "IqqqqFFqqqqI",
+      "IqqqqFFqqqqI",
+      "IFFFFFFFFFFI",
+      "IqqFFqqqqFFI",
+      "IqqFFqqqqFFI",
+      "IFFFFqqFFFFI",
+      "IFFFFqqFFFFI",
+      "IFFFFFFFFFFI",
+      "IFFFFFmFFFFI",
+      "IIIIIIIIIIII",
+    ],
+    warps: [{ x: 6, y: 10, to: "amethyst-port", tx: 6, ty: 6, dir: "down" }],
+    signs: [],
+    npcs: [
+      { id: "gym5-leader", x: 5, y: 1, dir: "down", palette: "leader", trainer: TRAINERS.gym5 },
+      {
+        id: "gym5-aide", x: 5, y: 4, dir: "down", palette: "bugcatcher",
+        trainer: {
+          id: "gym5aide", nameKey: "story.tn.bug1", preKey: "story.trainer_bug1_pre",
+          loseKey: "story.trainer_bug1_lose",
+          team: [{ speciesId: 88, level: 28 }, { speciesId: 109, level: 28 }], prize: 840,
+        },
+      },
+    ],
+    items: [],
+  },
+
+  // ========================================================= STAR TOWER (teleport puzzle)
+  "star-tower": {
+    id: "star-tower",
+    nameKey: "story.sign_gym6",
+    music: "gym",
+    indoor: true,
+    grid: [
+      "IIIIIIIIIIIIII",
+      "IFFFFFFFFFFFFI",
+      "IFFFFFFFFFFFFI",
+      "IFFFFFFFFFFFFI",
+      "IFFF@FFFF@FFFI",
+      "IFFFFFFFFFFFFI",
+      "IIIIIIIIIIIIII",
+      "IIIIIIIIIIIIII",
+      "IFFFFFFFFFFFFI",
+      "IFF@FFFFFF@FFI",
+      "IIIIIIIIIIIIII",
+      "IFFFFFFFFFFFFI",
+      "IFF@FFFFFF@FFI",
+      "IFFFFFFFFFFFFI",
+      "IFFFFFFmFFFFFI",
+      "IIIIIIIIIIIIII",
+    ],
+    warps: [
+      // entry / exit
+      { x: 7, y: 14, to: "amethyst-port", tx: 24, ty: 12, dir: "down" },
+      // bottom pads: left ascends to mid floor, right is a decoy loop
+      { x: 3, y: 12, to: "star-tower", tx: 4, ty: 8, dir: "up" },
+      { x: 10, y: 12, to: "star-tower", tx: 10, ty: 13, dir: "down" },
+      // mid pads: left returns down, right ascends to top floor
+      { x: 3, y: 9, to: "star-tower", tx: 4, ty: 13, dir: "down" },
+      { x: 10, y: 9, to: "star-tower", tx: 9, ty: 5, dir: "up" },
+      // top pads: left returns to bottom, right returns to mid
+      { x: 4, y: 4, to: "star-tower", tx: 3, ty: 13, dir: "down" },
+      { x: 9, y: 4, to: "star-tower", tx: 9, ty: 8, dir: "down" },
+    ],
+    signs: [],
+    npcs: [
+      { id: "gym6-leader", x: 6, y: 1, dir: "down", palette: "leader", trainer: TRAINERS.gym6 },
+      {
+        id: "tr-admin3", x: 6, y: 3, dir: "down", palette: "rival",
+        trainer: { ...TRAINERS.auroraadmin3, vanish: true }, ifNotFlag: "tr:auroraadmin3",
+      },
+      { id: "tr-aurorag5", x: 3, y: 8, dir: "right", palette: "rival", trainer: TRAINERS.aurorag5, ifNotFlag: "tr:aurorag5" },
+      { id: "tr-aurorag6", x: 10, y: 8, dir: "left", palette: "rival", trainer: TRAINERS.aurorag6, ifNotFlag: "tr:aurorag6" },
+      { id: "tower-sage", x: 2, y: 13, dir: "right", palette: "oldman", dialogKeys: ["story.npc_tower1"] },
+    ],
+    items: [
+      { x: 12, y: 8, item: "tm-94", qty: 1, flag: "item:st-tm94" },
     ],
   },
 };
