@@ -100,3 +100,18 @@ export function PokeballIcon({ size = 18, className = "" }: { size?: number; cla
     </svg>
   );
 }
+
+/** GBA-style Pokémon egg: cream shell, dark outline, green speckles. */
+export function EggSprite({ size = 44, className = "" }: { size?: number; className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" width={size} height={size} className={`pixelated ${className}`} shapeRendering="crispEdges">
+      <path d="M6 1h4v1h2v2h1v2h1v4h-1v2h-1v1h-2v1H6v-1H4v-1H3v-2H2V6h1V4h1V2h2z" fill="#3a3328" />
+      <path d="M6 2h4v1h1v1h1v2h1v4h-1v2h-1v1h-1v1H6v-1H5v-1H4v-2H3V6h1V4h1V3h1z" fill="#f5ead0" />
+      <path d="M10 3h1v1h1v2h1v4h-1v2h-1v1h-1v1H8v-1h2v-1h1v-2h1V6h-1V4h-1z" fill="#dcc89c" />
+      <rect x="6" y="5" width="2" height="2" fill="#7ab468" />
+      <rect x="9" y="8" width="2" height="2" fill="#7ab468" />
+      <rect x="5" y="10" width="1" height="1" fill="#7ab468" />
+      <rect x="5" y="3" width="1" height="2" fill="#fffbe8" />
+    </svg>
+  );
+}

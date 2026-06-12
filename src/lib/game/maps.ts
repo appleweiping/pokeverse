@@ -49,7 +49,7 @@ export interface NpcDef {
   dir: Dir;
   palette: string;
   dialogKeys?: string[];
-  script?: "professor" | "nurse" | "mart" | "mom" | "rivalIdle" | "rod" | "champion" | "legend";
+  script?: "professor" | "nurse" | "mart" | "mom" | "rivalIdle" | "rod" | "champion" | "legend" | "daycare";
   trainer?: TrainerDef;
   /** only visible when this flag is truthy / falsy */
   ifFlag?: string;
@@ -75,6 +75,8 @@ export interface MapDef {
   encounters?: EncounterTable;
   /** fishing encounter table (Old Rod at water edges) */
   fishing?: EncounterTable;
+  /** ambient weather: overworld particles + battles start with it active */
+  weather?: "rain" | "snow" | "sand";
 }
 
 export interface CompiledMap extends MapDef {
@@ -1179,6 +1181,7 @@ export const MAPS: Record<string, MapDef> = {
       { x: 5, y: 4, to: "gym-meadow", tx: 6, ty: 9, dir: "up" },
       { x: 14, y: 4, to: "meadow-center", tx: 6, ty: 4, dir: "up" },
       { x: 5, y: 9, to: "meadow-mart", tx: 5, ty: 4, dir: "up" },
+      { x: 14, y: 9, to: "daycare-house", tx: 5, ty: 4, dir: "up" },
       { x: 10, y: 0, to: "route-6", tx: 8, ty: 22, dir: "up" },
       { x: 11, y: 0, to: "route-6", tx: 9, ty: 22, dir: "up" },
     ],
@@ -1206,6 +1209,28 @@ export const MAPS: Record<string, MapDef> = {
     warps: [{ x: 6, y: 5, to: "meadow-town", tx: 14, ty: 5, dir: "down" }],
     signs: [],
     npcs: [{ id: "nurse4", x: 5, y: 1, dir: "down", palette: "nurse", script: "nurse" }],
+    items: [],
+  },
+  "daycare-house": {
+    id: "daycare-house",
+    nameKey: "story.sign_daycare",
+    music: "center",
+    indoor: true,
+    grid: [
+      "IIIIIIIIII",
+      "Ia___bb__I",
+      "I________I",
+      "I________I",
+      "I________I",
+      "I____m___I",
+      "IIIIIIIIII",
+    ],
+    warps: [{ x: 5, y: 5, to: "meadow-town", tx: 14, ty: 10, dir: "down" }],
+    signs: [],
+    npcs: [
+      { id: "daycare-man", x: 3, y: 2, dir: "down", palette: "oldman", script: "daycare" },
+      { id: "daycare-granny", x: 7, y: 3, dir: "left", palette: "girl", dialogKeys: ["story.npc_daycare1"] },
+    ],
     items: [],
   },
   "meadow-mart": {
@@ -1307,6 +1332,7 @@ export const MAPS: Record<string, MapDef> = {
     id: "sea-route",
     nameKey: "story.sign_sea",
     music: "surf",
+    weather: "rain",
     grid: [
       "TTTTTTTTTSSTTTTTTTTT",
       "T~~~~~~~SSSS~~~~~~~T",
@@ -1543,6 +1569,7 @@ export const MAPS: Record<string, MapDef> = {
     id: "route-6",
     nameKey: "story.sign_route6",
     music: "route",
+    weather: "snow",
     grid: [
       "TTTTTTTT,,TTTTTTTT",
       "Tnnnnnn,,,,nnnnnnT",
@@ -1598,6 +1625,7 @@ export const MAPS: Record<string, MapDef> = {
     id: "frost-village",
     nameKey: "story.sign_frost",
     music: "town",
+    weather: "snow",
     grid: [
       "TTTTTTTTTT,,TTTTTTTTTT",
       "Tnnnnnnnnn,,nnnnnnnnnT",
@@ -1706,6 +1734,7 @@ export const MAPS: Record<string, MapDef> = {
     id: "dragon-ridge",
     nameKey: "story.sign_dragon",
     music: "cave",
+    weather: "snow",
     grid: [
       "TTTTTTTTT,,TTTTTTTTT",
       "Trrnnnnnn,,nnnnnnrrT",

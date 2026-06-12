@@ -5,6 +5,11 @@ import { useI18n } from "@/lib/i18n";
 
 const RELEASES: { v: string; date: string; zh: string[]; en: string[] }[] = [
   {
+    v: "v0.9.0", date: "2026-06-12",
+    zh: ["培育屋与蛋系统（蛋组兼容、IV 遗传、步数孵化）", "地图常驻天气（海路雨/雪原雪，野战自动带天气）", "战败黑屏修复：真正传送回治疗点 + 损失金额提示", "训练家卡新增「当前目标」指引", "真实玩家 UX 实测反馈轮 1 修复 5 项"],
+    en: ["Day Care & Eggs (egg groups, IV inheritance, step hatching)", "Ambient map weather (sea rain / snowfield snow, carried into battles)", "Blackout fix: real teleport to heal point + money-loss message", "Trainer card now shows your current objective", "5 fixes from real-player UX testing round 1"],
+  },
+  {
     v: "v0.8.0", date: "2026-06-12",
     zh: ["联盟终章：四天王连战 + 冠军小蓝战", "冰系道馆（滑冰谜题）+ 龙系道馆 + 胜利之路", "传说宝可梦水君捕捉战（专属 BGM）", "通关制作名单 + 殿堂登录", "全图鉴闪光奖励（512→64）", "新曲 3 首、43 图、五语言 58 条新文本"],
     en: ["League finale: Elite Four gauntlet + Champion Blue", "Ice Gym (sliding puzzle) + Dragon Gym + Victory Road", "Legendary Suicune encounter (unique BGM)", "End credits + Hall of Fame", "Full-dex shiny reward (512→64)", "3 new tracks, 43 maps, 58 new lines ×5 languages"],

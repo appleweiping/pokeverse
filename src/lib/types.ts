@@ -44,6 +44,10 @@ export interface DexEntry {
   evo?: EvoEdge[];
   /** EV yield, sparse [[statIdx, amount], ...] */
   ey?: [number, number][];
+  /** egg group slugs ("no-eggs" = cannot breed, "ditto" = breeds with anything) */
+  eg?: string[];
+  /** hatch counter — in-game hatch steps = (hc+1)*64 */
+  hc?: number;
 }
 
 export type Weather = "none" | "sun" | "rain" | "sand" | "hail";
@@ -109,6 +113,8 @@ export interface Mon {
   ability?: string; // resolved ability slug (chosen at creation)
   item?: string | null; // held item id (berries etc.)
   gender?: "m" | "f" | "n";
+  /** unhatched egg: steps remaining until hatch; the mon is unusable until it hatches */
+  egg?: { steps: number };
 }
 
 export type StatStageKey = "atk" | "def" | "spa" | "spd" | "spe" | "acc" | "eva";
@@ -143,6 +149,8 @@ export interface SaveData {
   achievements?: string[];
   /** champion victory record */
   hallOfFame?: { date: number; team: { speciesId: number; level: number }[] };
+  /** day-care: two boarded mons + steps walked since boarding + pending egg */
+  daycare?: { a: Mon | null; b: Mon | null; steps: number; egg: boolean };
 }
 
 export interface ItemDef {

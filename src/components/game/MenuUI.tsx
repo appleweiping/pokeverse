@@ -11,7 +11,7 @@ import { maxHPOf, statsOf } from "@/lib/game/factory";
 import { ITEMS, MART_STOCK } from "@/lib/game/items";
 import type { ItemDef } from "@/lib/types";
 import { audio } from "@/lib/audio/tracks";
-import { HPBar, MonSprite, StatusBadge, TypeBadge, PokeballIcon } from "@/components/shared";
+import { HPBar, MonSprite, StatusBadge, TypeBadge, PokeballIcon, EggSprite } from "@/components/shared";
 
 function fmtTime(sec: number) {
   const h = Math.floor(sec / 3600);
@@ -69,6 +69,19 @@ export default function MenuUI() {
     switch (g.submenu) {
       // ---------------------------------------------------------------- party
       case "party": {
+        if (detail !== null && save.party[detail]?.egg) {
+          const mon = save.party[detail];
+          return (
+            <Panel title={t("game.party.egg")} onBack={() => setDetail(null)}>
+              <div className="flex flex-col items-center gap-3 py-6">
+                <EggSprite size={120} />
+                <p className="text-sm text-slate-300">
+                  {mon.egg!.steps > 640 ? t("game.party.egg_far") : mon.egg!.steps > 192 ? t("game.party.egg_mid") : t("game.party.egg_near")}
+                </p>
+              </div>
+            </Panel>
+          );
+        }
         if (detail !== null && save.party[detail] && dexMap) {
           const mon = save.party[detail];
           const sp = dexMap.get(mon.speciesId)!;
@@ -209,6 +222,23 @@ export default function MenuUI() {
             {save.party.length === 0 && <p className="text-slate-400">{t("game.party.empty")}</p>}
             <div className="flex flex-col gap-1.5">
               {save.party.map((m, i) => {
+                if (m.egg) {
+                  return (
+                    <button
+                      key={m.uid}
+                      onClick={() => { audio.sfx("select"); setDetail(i); }}
+                      className="flex items-center gap-3 rounded-lg bg-slate-800/80 px-3 py-2 text-left hover:bg-slate-700"
+                    >
+                      <EggSprite size={44} />
+                      <div className="min-w-0 flex-1">
+                        <b className="text-sm">{t("game.party.egg")}</b>
+                        <p className="text-[11px] text-slate-400">
+                          {m.egg.steps > 640 ? t("game.party.egg_far") : m.egg.steps > 192 ? t("game.party.egg_mid") : t("game.party.egg_near")}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                }
                 const sp = dexMap?.get(m.speciesId);
                 const max = sp ? maxHPOf(m, sp) : m.curHP;
                 return (
@@ -246,7 +276,7 @@ export default function MenuUI() {
           return (
             <Panel title={t("game.party.choose")} onBack={() => setPickTarget(null)}>
               <div className="flex flex-col gap-1.5">
-                {save.party.map((m, i) => (
+                {save.party.map((m, i) => m.egg ? null : (
                   <button
                     key={m.uid}
                     onClick={async () => {
@@ -302,7 +332,15 @@ export default function MenuUI() {
         );
       }
       // ---------------------------------------------------------------- trainer card
-      case "trainer":
+      case "trainer": {
+        const objectiveKey = (() => {
+          if (!save.flags.starter) return "obj.starter";
+          const b = save.badges.length;
+          if (b < 8) return `obj.gym${b + 1}`;
+          if (!save.flags.champion_done) return "obj.league";
+          if (!save.flags.legend_done) return "obj.legend";
+          return "obj.complete";
+        })();
         return (
           <Panel title={t("game.menu.trainer")} onBack={() => close(null)}>
             <div className="rounded-xl bg-gradient-to-br from-pokeblue to-[#1c2c54] p-5 text-white shadow-xl">
@@ -312,6 +350,11 @@ export default function MenuUI() {
                   <div className="text-2xl font-black tracking-wider">{save.playerName}</div>
                 </div>
                 <PokeballIcon size={42} />
+              </div>
+              <div className="mt-3 rounded-lg bg-white/10 px-3 py-2 text-[13px]">
+                <span className="mr-1">🎯</span>
+                <span className="opacity-80">{t("game.menu.objective")}:</span>{" "}
+                <b>{t(objectiveKey)}</b>
               </div>
               <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
                 <Info label={t("game.menu.money")} value={`₽ ${save.money.toLocaleString()}`} />
@@ -337,6 +380,7 @@ export default function MenuUI() {
             </div>
           </Panel>
         );
+      }
       // ---------------------------------------------------------------- save
       case "save":
         return (
@@ -449,16 +493,18 @@ export default function MenuUI() {
                     <button
                       key={m.uid}
                       onClick={() => {
-                        if (save.party.length <= 1) { g.showToast(t("game.field.party_last")); audio.sfx("cancel"); return; }
-                        save.party = save.party.filter((x) => x.uid !== m.uid);
+                        // the party must keep at least one battle-able (non-egg) Pokémon
+                        const rest = save.party.filter((x) => x.uid !== m.uid);
+                        if (rest.length === 0 || rest.every((x) => x.egg)) { g.showToast(t("game.field.party_last")); audio.sfx("cancel"); return; }
+                        save.party = rest;
                         save.box.push(m);
                         audio.sfx("select"); g.bump();
                       }}
                       className="flex items-center gap-2 rounded bg-slate-800/80 px-2 py-1.5 text-left text-sm hover:bg-slate-700"
                     >
-                      <MonSprite id={m.speciesId} size={32} />
-                      <b className="flex-1 truncate">{monName(m)}</b>
-                      <span className="text-xs text-slate-400">Lv.{m.level} ↓</span>
+                      {m.egg ? <EggSprite size={32} /> : <MonSprite id={m.speciesId} size={32} />}
+                      <b className="flex-1 truncate">{m.egg ? t("game.party.egg") : monName(m)}</b>
+                      <span className="text-xs text-slate-400">{m.egg ? "↓" : `Lv.${m.level} ↓`}</span>
                     </button>
                   ))}
                 </div>
@@ -477,9 +523,9 @@ export default function MenuUI() {
                       }}
                       className="flex items-center gap-2 rounded bg-slate-800/80 px-2 py-1.5 text-left text-sm hover:bg-slate-700"
                     >
-                      <MonSprite id={m.speciesId} size={32} />
-                      <b className="flex-1 truncate">{monName(m)}</b>
-                      <span className="text-xs text-slate-400">Lv.{m.level} ↑</span>
+                      {m.egg ? <EggSprite size={32} /> : <MonSprite id={m.speciesId} size={32} />}
+                      <b className="flex-1 truncate">{m.egg ? t("game.party.egg") : monName(m)}</b>
+                      <span className="text-xs text-slate-400">{m.egg ? "↑" : `Lv.${m.level} ↑`}</span>
                     </button>
                   ))}
                   {save.box.length === 0 && <p className="text-xs text-slate-500">—</p>}

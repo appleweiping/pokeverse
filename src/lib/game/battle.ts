@@ -171,19 +171,29 @@ export class BattleSession {
     kind: "wild" | "trainer",
     party: Mon[],
     enemyParty: Mon[],
-    opts: { trainer?: TrainerInfo; rng?: () => number } = {}
+    opts: { trainer?: TrainerInfo; rng?: () => number; weather?: Weather } = {}
   ): Promise<BattleSession> {
     const s = new BattleSession(kind, party, enemyParty, opts.rng ?? Math.random, opts.trainer);
     s.moveMap = await getMoveMap();
     const firstAble = party.findIndex((m) => m.curHP > 0);
     s.player = await makeBattler(party[Math.max(0, firstAble)]);
     s.enemy = await makeBattler(enemyParty[0]);
+    if (opts.weather && opts.weather !== "none") {
+      // ambient map weather: weatherTurns 0 = never counts down
+      s.weather = opts.weather;
+      s.weatherTurns = 0;
+    }
     return s;
   }
 
   /** Switch-in ability triggers (weather setters, intimidate). Call after intro. */
   introAbilities(): BattleEvent[] {
     const ev: BattleEvent[] = [];
+    if (this.weather !== "none") {
+      // ambient weather carried in from the overworld map
+      ev.push({ t: "weather", weather: this.weather });
+      ev.push({ t: "msg", key: `game.battle.weather_${this.weather}_start` });
+    }
     // faster mon's ability would announce first, but order is cosmetic here
     for (const b of [this.enemy, this.player] as Battler[]) {
       this.onSwitchIn(b, ev);

@@ -78,18 +78,24 @@ export class NetRoom {
     this.code = code.trim().toUpperCase();
     this.peer = new Peer();
     return new Promise((resolve, reject) => {
+      // settle-once guard: the 12s timer, conn events and peer errors race,
+      // and a promise must not reject after it already resolved
+      let settled = false;
+      const ok = () => { if (!settled) { settled = true; resolve(); } };
+      const fail = (e: Error) => { if (!settled) { settled = true; reject(e); } };
       this.peer.on("open", () => {
         const conn = this.peer.connect(PREFIX + this.code, { reliable: true });
-        conn.on("open", () => {
-          this.attach(conn);
-          resolve();
-        });
-        conn.on("error", (e: Error) => { this.statusCb("error", e.message); reject(e); });
-        setTimeout(() => {
-          if (!this.conn) { this.statusCb("error", "timeout"); reject(new Error("timeout")); }
+        const timer = setTimeout(() => {
+          if (!this.conn) { this.statusCb("error", "timeout"); fail(new Error("timeout")); }
         }, 12000);
+        conn.on("open", () => {
+          clearTimeout(timer);
+          this.attach(conn);
+          ok();
+        });
+        conn.on("error", (e: Error) => { clearTimeout(timer); this.statusCb("error", e.message); fail(e); });
       });
-      this.peer.on("error", (e: Error) => { this.statusCb("error", e.message); reject(e); });
+      this.peer.on("error", (e: Error) => { this.statusCb("error", e.message); fail(e); });
     });
   }
 

@@ -1,6 +1,6 @@
 "use client";
 import { create } from "zustand";
-import type { Mon, SaveData } from "../types";
+import type { Mon, SaveData, Weather } from "../types";
 import { BattleSession, type BattleResult, type TrainerInfo } from "./battle";
 import { createMon, evolveMon, healMon, itemEvolution, learnMove, levelEvolution, maxHPOf } from "./factory";
 import { getSpecies } from "../data/dex";
@@ -83,6 +83,8 @@ interface GameStore {
   toast: string | null;
   /** end-credits roll active */
   credits: boolean;
+  /** set after a battle loss; the overworld engine performs the teleport and clears it */
+  respawn: { mapId: string; x: number; y: number; moneyLost: number } | null;
   /** bumps whenever party/bag mutate so React re-renders */
   tick: number;
 
@@ -115,8 +117,8 @@ interface GameStore {
   setFlag: (k: string, v: number) => void;
   flag: (k: string) => number;
   healParty: () => Promise<void>;
-  startWildBattle: (speciesId: number, level: number, theme?: string) => Promise<void>;
-  startTrainerBattle: (def: TrainerDef) => Promise<void>;
+  startWildBattle: (speciesId: number, level: number, theme?: string, weather?: Weather) => Promise<void>;
+  startTrainerBattle: (def: TrainerDef, weather?: Weather) => Promise<void>;
   endBattle: (result: BattleResult) => Promise<void>;
   runLearnFlow: (reqs: LearnRequest[]) => Promise<void>;
   runEvolutionChecks: (uids: Set<string>) => Promise<void>;
@@ -138,6 +140,7 @@ export const useGame = create<GameStore>((set, get) => ({
   battleSession: null,
   battleTrainer: null,
   toast: null,
+  respawn: null,
   credits: false,
   tick: 0,
 
@@ -187,13 +190,21 @@ export const useGame = create<GameStore>((set, get) => ({
     const s = get().save ?? get().hasSave();
     if (!s) return null;
     try {
-      return "PV1." + btoa(unescape(encodeURIComponent(JSON.stringify(s))));
+      // UTF-8 → binary string → base64; byte-identical to the deprecated
+      // btoa(unescape(encodeURIComponent(...))) trick, so old codes still work.
+      const bytes = new TextEncoder().encode(JSON.stringify(s));
+      let bin = "";
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      return "PV1." + btoa(bin);
     } catch { return null; }
   },
   importSave: (code) => {
     try {
       const body = code.trim().replace(/^PV1\./, "");
-      const data = JSON.parse(decodeURIComponent(escape(atob(body)))) as SaveData;
+      const bin = atob(body);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const data = JSON.parse(new TextDecoder().decode(bytes)) as SaveData;
       if (!data || data.version !== 1 || !Array.isArray(data.party)) return false;
       localStorage.setItem(SAVE_KEY, JSON.stringify(data));
       return true;
@@ -274,35 +285,39 @@ export const useGame = create<GameStore>((set, get) => ({
     const s = get().save;
     if (!s) return;
     for (const mon of s.party) {
+      if (mon.egg) continue;
       const sp = await getSpecies(mon.speciesId);
       healMon(mon, sp);
     }
     get().bump();
   },
 
-  startWildBattle: async (speciesId, level, theme) => {
+  startWildBattle: async (speciesId, level, theme, weather) => {
     const s = get().save;
-    if (!s || s.party.every((m) => m.curHP <= 0)) return;
+    const able = s?.party.filter((m) => !m.egg) ?? [];
+    if (!s || able.length === 0 || able.every((m) => m.curHP <= 0)) return;
     audio.sfx("encounter");
     // living-dex reward: completing the National Dex boosts shiny odds 8×
     const shinyDen = s.dexCaught.length >= 1025 ? 64 : 512;
     const wild = await createMon(speciesId, level, "WILD", { shinyDen });
-    const session = await BattleSession.create("wild", s.party, [wild]);
+    const session = await BattleSession.create("wild", able, [wild], { weather });
     get().markSeen(speciesId);
     audio.playMusic(theme ?? "battle_wild");
     set({ phase: "battle", battleSession: session, battleTrainer: null, menuOpen: false, submenu: null });
   },
 
-  startTrainerBattle: async (def) => {
+  startTrainerBattle: async (def, weather) => {
     const s = get().save;
     if (!s) return;
+    const able = s.party.filter((m) => !m.egg);
+    if (able.length === 0) return;
     const team: Mon[] = [];
     for (const t of def.team) {
       team.push(await createMon(t.speciesId, t.level, "TRAINER"));
       get().markSeen(t.speciesId);
     }
     const info: TrainerInfo = { id: def.id, nameKey: def.nameKey, prize: def.prize, badge: def.badge };
-    const session = await BattleSession.create("trainer", s.party, team, { trainer: info });
+    const session = await BattleSession.create("trainer", able, team, { trainer: info, weather });
     audio.playMusic(def.theme ?? (def.badge ? "gym" : "battle_trainer"));
     set({ phase: "battle", battleSession: session, battleTrainer: info, menuOpen: false, submenu: null });
   },
@@ -339,17 +354,20 @@ export const useGame = create<GameStore>((set, get) => ({
     if (result === "win" && session.kind === "trainer") audio.sfx("levelup");
 
     if (result === "lose") {
+      const moneyLost = s.money - Math.max(0, Math.floor(s.money / 2));
       s.money = Math.max(0, Math.floor(s.money / 2));
       for (const mon of s.party) {
+        if (mon.egg) continue;
         const sp = await getSpecies(mon.speciesId);
         healMon(mon, sp);
       }
-      // respawn at last heal point
+      // respawn at last heal point — the engine watches `respawn` and performs the teleport
       const healMap = s.flags.lastHealMapId;
       s.mapId = typeof healMap === "string" && healMap ? healMap : "player-home";
       s.x = Number(s.flags.lastHealX) || 4;
       s.y = Number(s.flags.lastHealY) || 4;
       s.dir = "down";
+      set({ respawn: { mapId: s.mapId, x: s.x, y: s.y, moneyLost } });
     }
 
     // lifetime counters + replay log

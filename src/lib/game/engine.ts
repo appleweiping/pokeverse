@@ -1,11 +1,11 @@
-import type { Dir } from "../types";
+import type { Dir, Mon, Weather } from "../types";
 import { getMap, tileAt, type CompiledMap, type NpcDef, type TrainerDef } from "./maps";
 import { T, TILE, SOLID, ENCOUNTER_TILES, drawTile, getCharSprite } from "./tiles";
 import { useGame } from "./state";
 import { audio } from "../audio/tracks";
 import { tr, currentLocale } from "../i18n";
 import { getSpecies, localName, spriteIcon } from "../data/dex";
-import { createMon, healMon } from "./factory";
+import { createMon, healMon, maxHPOf } from "./factory";
 import { MART_STOCK } from "./items";
 
 const WALK_MS = 190;
@@ -176,6 +176,30 @@ export class Overworld {
     void this.runMapTriggers();
   }
 
+  /** Teleport to the last heal point after a battle loss (set by endBattle). */
+  private async doRespawn(rs: { mapId: string; x: number; y: number; moneyLost: number }) {
+    this.busy = true;
+    this.fadeTarget = 1;
+    await this.waitFade();
+    this.loadMap(rs.mapId, rs.x, rs.y, "down");
+    this.fadeTarget = 0;
+    await this.waitFade();
+    const g = useGame.getState();
+    await g.showDialogue([
+      rs.moneyLost > 0
+        ? tr("game.field.respawned_money", { n: rs.moneyLost })
+        : tr("game.field.respawned"),
+    ]);
+    this.busy = false;
+  }
+
+  /** Map ambient weather → battle weather ("snow" falls as hail in battle). */
+  private battleWeather(): Weather | undefined {
+    const w = this.map.weather;
+    if (!w) return undefined;
+    return w === "snow" ? "hail" : w;
+  }
+
   private waitFade(): Promise<void> {
     return new Promise((r) => {
       const tick = () => {
@@ -219,6 +243,14 @@ export class Overworld {
     if (this.banner) {
       this.banner.t -= dt;
       if (this.banner.t <= 0) this.banner = null;
+    }
+    // battle-loss respawn request from the store (wait for all UI to settle first)
+    if (!this.moving && !this.uiBlocked()) {
+      const rs = useGame.getState().respawn;
+      if (rs) {
+        useGame.setState({ respawn: null });
+        void this.doRespawn(rs);
+      }
     }
     // npc idle facing
     for (const n of this.npcs) {
@@ -352,9 +384,12 @@ export class Overworld {
       }
     }
 
+    // day-care progress + party egg hatching (one tick per tile stepped)
+    if (save) await this.stepBreeding();
+
     // wild encounter (tall grass, or open water while surfing)
     const tile = tileAt(this.map, this.tx, this.ty);
-    if ((ENCOUNTER_TILES.has(tile) || tile === T.WATER) && this.map.encounters && save && save.party.some((m) => m.curHP > 0)) {
+    if ((ENCOUNTER_TILES.has(tile) || tile === T.WATER) && this.map.encounters && save && save.party.some((m) => !m.egg && m.curHP > 0)) {
       if (Math.random() < this.map.encounters.rate) {
         const { table } = this.map.encounters;
         const total = table.reduce((a, e) => a + e[1], 0);
@@ -363,12 +398,68 @@ export class Overworld {
         for (const e of table) { roll -= e[1]; if (roll <= 0) { pick = e; break; } }
         const level = pick[2] + Math.floor(Math.random() * (pick[3] - pick[2] + 1));
         this.busy = true;
-        await g.startWildBattle(pick[0], level);
+        await g.startWildBattle(pick[0], level, undefined, this.battleWeather());
         await waitForOverworld();
         this.busy = false;
       }
     }
     void this.runMapTriggers();
+  }
+
+  /** guards stepBreeding against concurrent ticks (arrived() is fire-and-forget) */
+  private breedingTick = false;
+
+  /** Per-step breeding tick: day-care egg production + carried-egg hatching. */
+  private async stepBreeding() {
+    if (this.breedingTick) return;
+    this.breedingTick = true;
+    try {
+      await this.stepBreedingInner();
+    } finally {
+      this.breedingTick = false;
+    }
+  }
+
+  private async stepBreedingInner() {
+    const g = useGame.getState();
+    const save = g.save;
+    if (!save) return;
+
+    // day-care pair: count steps; roll for an egg every 64 steps
+    const dc = save.daycare;
+    if (dc?.a && dc?.b && !dc.egg) {
+      dc.steps++;
+      if (dc.steps % 64 === 0) {
+        const { compatible } = await import("./breeding");
+        const [spA, spB] = await Promise.all([getSpecies(dc.a.speciesId), getSpecies(dc.b.speciesId)]);
+        if (compatible(spA, dc.a, spB, dc.b) && Math.random() < 0.5) {
+          dc.egg = true;
+        }
+      }
+    }
+
+    // carried eggs tick down and hatch
+    for (const mon of save.party) {
+      if (!mon.egg) continue;
+      mon.egg.steps--;
+      if (mon.egg.steps > 0) continue;
+      this.busy = true;
+      const { hatchEgg } = await import("./breeding");
+      await hatchEgg(mon);
+      const sp = await getSpecies(mon.speciesId);
+      mon.curHP = maxHPOf(mon, sp);
+      g.markSeen(mon.speciesId);
+      g.markCaught(mon.speciesId);
+      audio.sfx("evolve");
+      await g.showDialogue([
+        tr("game.field.egg_hatching"),
+        tr("game.field.egg_hatched", { name: localName(sp.n, currentLocale()) }),
+      ]);
+      g.bump();
+      g.persist();
+      void g.checkAchv();
+      this.busy = false;
+    }
   }
 
   /** Scripted one-time events per map. */
@@ -391,8 +482,10 @@ export class Overworld {
       };
       await g.startTrainerBattle(def);
       await waitForOverworld();
-      const won = !!g.flag("tr:rival1");
-      await g.showDialogue([tr(won ? "story.rival_lose" : "story.rival_win"), tr("story.rival_after")]);
+      // on a loss the blackout respawn takes over — no victor gloating afterwards
+      if (g.flag("tr:rival1")) {
+        await g.showDialogue([tr("story.rival_lose"), tr("story.rival_after")]);
+      }
       this.busy = false;
     }
   }
@@ -567,7 +660,7 @@ export class Overworld {
 
     if (d.trainer && !g.flag("tr:" + d.trainer.id)) {
       await g.showDialogue([tr(d.trainer.preKey)]);
-      await g.startTrainerBattle(d.trainer);
+      await g.startTrainerBattle(d.trainer, this.battleWeather());
       await waitForOverworld();
       if (g.flag("tr:" + d.trainer.id)) {
         const lines = [tr(d.trainer.loseKey)];
@@ -630,6 +723,10 @@ export class Overworld {
         await this.scriptChampion();
         break;
       }
+      case "daycare": {
+        await this.scriptDaycare();
+        break;
+      }
       default:
         if (d.dialogKeys?.length) {
           await g.showDialogue(d.dialogKeys.map((k) => tr(k)));
@@ -678,6 +775,98 @@ export class Overworld {
     g.giveItem("poke-ball", 5);
     audio.sfx("levelup");
     g.persist();
+    void g.checkAchv(); // first-catch unlocks right here, not after the next battle
+  }
+
+  /** Day-care: board two Pokémon; compatible pairs produce an egg while you walk. */
+  private async scriptDaycare() {
+    const g = useGame.getState();
+    const save = g.save!;
+    save.daycare ??= { a: null, b: null, steps: 0, egg: false };
+    const dc = save.daycare;
+    const monName = async (m: Mon) => m.nickname ?? localName((await getSpecies(m.speciesId)).n, currentLocale());
+
+    // an egg is waiting
+    if (dc.egg && dc.a && dc.b) {
+      await g.showDialogue([tr("story.daycare_egg_ready")]);
+      const take = await g.askChoice(tr("story.daycare_egg_take"), [
+        { label: tr("game.field.yes"), value: "y" },
+        { label: tr("game.field.no"), value: "n" },
+      ]);
+      if (take === "y") {
+        if (save.party.length >= 6) {
+          await g.showDialogue([tr("story.daycare_party_full")]);
+        } else {
+          const { makeEgg } = await import("./breeding");
+          const egg = await makeEgg(dc.a, dc.b, save.playerName);
+          save.party.push(egg);
+          dc.egg = false;
+          dc.steps = 0;
+          audio.sfx("catch");
+          await g.showDialogue([tr("story.daycare_egg_got")]);
+          g.bump();
+          g.persist();
+        }
+      }
+      return;
+    }
+
+    await g.showDialogue([tr("story.daycare_welcome")]);
+    if (dc.a && dc.b) {
+      const { compatible } = await import("./breeding");
+      const [spA, spB] = await Promise.all([getSpecies(dc.a.speciesId), getSpecies(dc.b.speciesId)]);
+      await g.showDialogue([
+        tr("story.daycare_status", { a: await monName(dc.a), b: await monName(dc.b) }),
+        tr(compatible(spA, dc.a, spB, dc.b) ? "story.daycare_good" : "story.daycare_meh"),
+      ]);
+    }
+
+    const opts: { label: string; value: string }[] = [];
+    if ((!dc.a || !dc.b) && save.party.filter((m) => !m.egg).length > 1) opts.push({ label: tr("story.daycare_opt_leave"), value: "leave" });
+    if (dc.a || dc.b) opts.push({ label: tr("story.daycare_opt_take"), value: "take" });
+    opts.push({ label: tr("story.daycare_opt_bye"), value: "bye" });
+    const action = await g.askChoice(tr("story.daycare_prompt"), opts);
+
+    if (action === "leave") {
+      const eligible = save.party.filter((m) => !m.egg);
+      // must keep at least one healthy non-egg in the party
+      const pickable = eligible.filter((m) => eligible.some((o) => o !== m && o.curHP > 0));
+      const names: { label: string; value: string }[] = [];
+      for (const m of pickable) names.push({ label: `${await monName(m)} Lv.${m.level}`, value: m.uid });
+      names.push({ label: tr("game.bag.give_up"), value: "skip" });
+      const pick = await g.askChoice(tr("story.daycare_which"), names);
+      if (pick && pick !== "skip") {
+        const idx = save.party.findIndex((m) => m.uid === pick);
+        const [mon] = save.party.splice(idx, 1);
+        if (!dc.a) dc.a = mon; else dc.b = mon;
+        dc.steps = 0;
+        await g.showDialogue([tr("story.daycare_left", { name: await monName(mon) })]);
+        g.bump();
+        g.persist();
+      }
+    } else if (action === "take") {
+      const boarded = [dc.a, dc.b].filter((m): m is Mon => !!m);
+      const names: { label: string; value: string }[] = [];
+      for (const m of boarded) names.push({ label: `${await monName(m)} Lv.${m.level}`, value: m.uid });
+      names.push({ label: tr("game.bag.give_up"), value: "skip" });
+      const pick = await g.askChoice(tr("story.daycare_which"), names);
+      if (pick && pick !== "skip") {
+        if (save.party.length >= 6) {
+          await g.showDialogue([tr("story.daycare_party_full")]);
+        } else {
+          let mon: Mon;
+          if (dc.a?.uid === pick) { mon = dc.a; dc.a = null; }
+          else { mon = dc.b!; dc.b = null; }
+          dc.egg = false;
+          // boarded Pokémon come back rested
+          healMon(mon, await getSpecies(mon.speciesId));
+          save.party.push(mon);
+          await g.showDialogue([tr("story.daycare_taken", { name: await monName(mon) })]);
+          g.bump();
+          g.persist();
+        }
+      }
+    }
   }
 
   private async scriptNurse() {
@@ -845,8 +1034,8 @@ export class Overworld {
       });
     }
 
-    // follower pokemon (lead party mon)
-    const lead = g.save?.party.find((m) => m.curHP > 0) ?? g.save?.party[0];
+    // follower pokemon (lead party mon; eggs stay in their carrier)
+    const lead = g.save?.party.find((m) => !m.egg && m.curHP > 0) ?? g.save?.party.find((m) => !m.egg);
     if (lead && this.followerHist.length > 1) {
       const [hx, hy] = this.followerHist[1];
       const img = this.icon(lead.speciesId);
@@ -893,6 +1082,34 @@ export class Overworld {
       } else if (hour >= 18 || hour < 7) {
         ctx.fillStyle = "rgba(255,140,60,0.12)";
         ctx.fillRect(0, 0, w, h);
+      }
+      // ambient map weather particles
+      if (this.map.weather === "rain") {
+        ctx.strokeStyle = "rgba(160,200,255,0.45)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let i = 0; i < 90; i++) {
+          const rx = ((i * 131 + 17) % w + this.clock * 0.12 * ((i % 3) + 2)) % w;
+          const ry = (i * 233 + this.clock * 0.5 * ((i % 3) + 2)) % h;
+          ctx.moveTo(rx, ry);
+          ctx.lineTo(rx - 2, ry + 9);
+        }
+        ctx.stroke();
+      } else if (this.map.weather === "snow") {
+        ctx.fillStyle = "rgba(240,248,255,0.8)";
+        for (let i = 0; i < 60; i++) {
+          const sx = ((i * 173 + 31) % w + Math.sin((this.clock + i * 700) / 900) * 14 + this.clock * 0.02) % w;
+          const sy = (i * 311 + this.clock * 0.06 * ((i % 3) + 1)) % h;
+          const sz = (i % 3 === 0) ? 2 : 1;
+          ctx.fillRect((sx + w) % w, sy, sz, sz);
+        }
+      } else if (this.map.weather === "sand") {
+        ctx.fillStyle = "rgba(220,190,120,0.35)";
+        for (let i = 0; i < 70; i++) {
+          const sx = (i * 149 + this.clock * 0.35 * ((i % 4) + 2)) % w;
+          const sy = ((i * 271 + 13) % h + Math.sin((this.clock + i * 500) / 400) * 6) % h;
+          ctx.fillRect(sx, (sy + h) % h, 2, 1);
+        }
       }
     }
 

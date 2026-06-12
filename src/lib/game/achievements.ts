@@ -24,7 +24,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "seen-75", icon: "🔭", cond: (s) => s.dexSeen.length >= 75 },
   { id: "seen-150", icon: "📡", cond: (s) => s.dexSeen.length >= 150 },
   { id: "shiny", icon: "✨", cond: (s) => [...s.party, ...s.box].some((m) => m.shiny) },
-  { id: "full-team", icon: "👥", cond: (s) => s.party.length >= 6 },
+  { id: "full-team", icon: "👥", cond: (s) => s.party.filter((m) => !m.egg).length >= 6 },
   { id: "box-10", icon: "📦", cond: (s) => s.box.length >= 10 },
   // --- badges & story
   { id: "badge-1", icon: "🥉", cond: (s) => s.badges.length >= 1 },

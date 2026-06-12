@@ -417,7 +417,8 @@ export default function OnlineBattlePage() {
   // ---------------------------------------------------------------- render
   const monName = (m: { speciesId: number; nickname?: string }) =>
     m.nickname ?? localName(dexRef.current?.get(m.speciesId)?.n, locale);
-  const party = save?.party ?? [];
+  // eggs can't battle or be traded online
+  const party = (save?.party ?? []).filter((m) => !m.egg);
   const session = sessionRef.current;
 
   const myTeam = session ? (isHostRef.current ? session.party : session.enemyParty) : [];
