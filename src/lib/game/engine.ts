@@ -1023,6 +1023,12 @@ export class Overworld {
       { item: "thunder-stone", qty: 1, bp: 6 },
       { item: "leaf-stone", qty: 1, bp: 6 },
       { item: "moon-stone", qty: 1, bp: 6 },
+      { item: "venusaurite", qty: 1, bp: 15 },
+      { item: "charizardite-y", qty: 1, bp: 15 },
+      { item: "blastoisinite", qty: 1, bp: 15 },
+      { item: "gengarite", qty: 1, bp: 15 },
+      { item: "gyaradosite", qty: 1, bp: 15 },
+      { item: "mewtwonite-y", qty: 1, bp: 15 },
     ];
     for (;;) {
       const bp = save.stats.bp ?? 0;

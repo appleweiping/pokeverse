@@ -36,7 +36,7 @@ export interface BattlerPublicView {
 }
 
 export type BattleAction =
-  | { kind: "move"; index: number }
+  | { kind: "move"; index: number; mega?: boolean }
   | { kind: "switch"; partyIdx: number }
   | { kind: "ball"; itemId: string }
   | { kind: "item"; itemId: string; partyIdx: number }
@@ -95,7 +95,8 @@ function freshStages(): Record<StatStageKey, number> {
 
 function viewOf(b: Battler): BattlerPublicView {
   return {
-    speciesId: b.mon.speciesId,
+    // species.id (not mon.speciesId) so Mega forms render their own sprite
+    speciesId: b.species.id,
     nickname: b.mon.nickname,
     level: b.mon.level,
     hp: b.mon.curHP,
@@ -104,6 +105,24 @@ function viewOf(b: Battler): BattlerPublicView {
     shiny: b.mon.shiny,
   };
 }
+
+/**
+ * Mega Evolution table: held stone + base species → in-battle form.
+ * Transform is battler-local; the saved mon is never mutated.
+ */
+/** mega form id → base species id (UI name fallback: dex has no 10xxx entries) */
+export const MEGA_BASE: Record<number, number> = {
+  10033: 3, 10035: 6, 10036: 9, 10038: 94, 10041: 130, 10044: 150,
+};
+
+export const MEGAS: Record<number, { stone: string; megaId: number; stats: [number, number, number, number, number, number]; types: TypeName[]; ability: string }> = {
+  3: { stone: "venusaurite", megaId: 10033, stats: [80, 100, 123, 122, 120, 80], types: ["grass", "poison"], ability: "thick-fat" },
+  6: { stone: "charizardite-y", megaId: 10035, stats: [78, 104, 78, 159, 115, 100], types: ["fire", "flying"], ability: "drought" },
+  9: { stone: "blastoisinite", megaId: 10036, stats: [79, 103, 120, 135, 115, 78], types: ["water"], ability: "torrent" },
+  94: { stone: "gengarite", megaId: 10038, stats: [60, 65, 80, 170, 95, 130], types: ["ghost", "poison"], ability: "shadow-tag" },
+  130: { stone: "gyaradosite", megaId: 10041, stats: [95, 155, 109, 70, 130, 81], types: ["water", "dark"], ability: "mold-breaker" },
+  150: { stone: "mewtwonite-y", megaId: 10044, stats: [106, 150, 70, 194, 120, 140], types: ["psychic"], ability: "insomnia" },
+};
 
 async function makeBattler(mon: Mon): Promise<Battler> {
   const species = await getSpecies(mon.speciesId);
@@ -169,6 +188,8 @@ export class BattleSession {
   noExp = false;
   /** transient damage multiplier for spread moves in doubles (0.75 when multi-target) */
   private spreadMod = 1;
+  /** Mega Evolution is once per battle per side */
+  private usedMegaP = false;
   /** every event ever emitted — used for battle replays */
   allEvents: BattleEvent[] = [];
   private moveMap!: Map<number, MoveData>;
@@ -330,6 +351,11 @@ export class BattleSession {
       await this.enemyActs(ev);
       this.endOfTurn(ev);
       return ev;
+    }
+
+    // ---- Mega Evolution happens before moves (affects this turn's speed order)
+    if (action.kind === "move" && action.mega && this.canMegaPlayer()) {
+      this.doMega(this.player, ev);
     }
 
     // ---- both choose moves: order by priority then speed
@@ -546,6 +572,28 @@ export class BattleSession {
   /** hp event for a battler, slot-tagged for doubles */
   private hpEv(b: Battler): BattleEvent {
     return { t: "hp", side: this.sideOf(b), slot: this.slotOf(b), hp: b.mon.curHP, maxHp: b.stats[0] };
+  }
+
+  // ------------------------------------------------------------- mega evolution
+  /** the active player mon holds its matching Mega Stone and hasn't transformed yet */
+  canMegaPlayer(): boolean {
+    if (this.usedMegaP || this.over) return false;
+    const m = MEGAS[this.player.mon.speciesId];
+    return !!m && this.player.mon.item === m.stone;
+  }
+
+  private doMega(b: Battler, ev: BattleEvent[]) {
+    const m = MEGAS[b.mon.speciesId];
+    if (!m) return;
+    this.usedMegaP = true;
+    b.species = { ...b.species, id: m.megaId, t: m.types, s: m.stats, ab: [m.ability] };
+    b.stats = statsOf(b.mon, b.species);
+    b.ability = ABILITIES[m.ability] ?? null;
+    ev.push({ t: "msg", key: "game.battle.mega", params: this.nameParam(b) });
+    ev.push({ t: "anim", kind: "heal", side: this.sideOf(b), slot: this.slotOf(b) });
+    ev.push({ t: "switch", side: this.sideOf(b), slot: this.slotOf(b), view: viewOf(b) });
+    // switch-in style triggers fire for the new form (e.g. Charizard-Y Drought)
+    this.onSwitchIn(b, ev);
   }
 
   /** Effective speed incl. stages, paralysis and abilities. */

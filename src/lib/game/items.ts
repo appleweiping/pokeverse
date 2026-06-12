@@ -33,6 +33,13 @@ export const ITEMS: Record<string, ItemDef> = {
   "pecha-berry":    { id: "pecha-berry", category: "berry", price: 100, berry: { cureStatus: ["psn", "tox"] } },
   "rawst-berry":    { id: "rawst-berry", category: "berry", price: 100, berry: { cureStatus: ["brn"] } },
   "aspear-berry":   { id: "aspear-berry", category: "berry", price: 100, berry: { cureStatus: ["frz"] } },
+  // ---- Mega Stones (held; enable in-battle Mega Evolution, BP shop only) ----
+  venusaurite:        { id: "venusaurite", category: "hold", price: 0 },
+  "charizardite-y":   { id: "charizardite-y", category: "hold", price: 0 },
+  blastoisinite:      { id: "blastoisinite", category: "hold", price: 0 },
+  gengarite:          { id: "gengarite", category: "hold", price: 0 },
+  gyaradosite:        { id: "gyaradosite", category: "hold", price: 0 },
+  "mewtwonite-y":     { id: "mewtwonite-y", category: "hold", price: 0 },
 };
 
 /** What the Poké Mart sells (item id + display order). */

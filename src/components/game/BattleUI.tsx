@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useGame } from "@/lib/game/state";
 import { useI18n } from "@/lib/i18n";
-import type { BattleAction, BattleEvent, BattlerPublicView, Side } from "@/lib/game/battle";
+import { MEGA_BASE, type BattleAction, type BattleEvent, type BattlerPublicView, type Side } from "@/lib/game/battle";
 import { getDexMap, getMoveMap, localName, type Locale } from "@/lib/data/dex";
 import { abilityName } from "@/lib/data/abilities";
 import type { DexEntry, MoveData, TypeName, Weather } from "@/lib/types";
@@ -37,6 +37,7 @@ function SingleBattleUI() {
   const [ballAnim, setBallAnim] = useState<"none" | "fly" | "wobble">("none");
   const [swirl, setSwirl] = useState(true);
   const [weather, setWeather] = useState<Weather>("none");
+  const [megaOn, setMegaOn] = useState(false);
   const [abilityFlash, setAbilityFlash] = useState<{ side: Side; name: string } | null>(null);
   const [particles, setParticles] = useState<{ side: Side; type: TypeName; key: number } | null>(null);
   const particleKey = useRef(0);
@@ -238,8 +239,14 @@ function SingleBattleUI() {
 
   const save = useGame.getState().save;
   const activeIdx = session.party.findIndex((m) => m.uid === session.player.mon.uid);
-  const pName = pv.nickname ?? localName(dexRef.current?.get(pv.speciesId)?.n, locale);
-  const eName = ev.nickname ?? localName(dexRef.current?.get(ev.speciesId)?.n, locale);
+  const dispName = (v: BattlerPublicView) => {
+    if (v.nickname) return v.nickname;
+    const base = MEGA_BASE[v.speciesId];
+    if (base) return "Mega " + localName(dexRef.current?.get(base)?.n, locale);
+    return localName(dexRef.current?.get(v.speciesId)?.n, locale);
+  };
+  const pName = dispName(pv);
+  const eName = dispName(ev);
 
   return (
     <div className="absolute inset-0 z-40 flex flex-col overflow-hidden bg-gradient-to-b from-[#86c4e8] via-[#b8e0c8] to-[#7ec850] text-ink">
@@ -334,7 +341,7 @@ function SingleBattleUI() {
                   <button
                     key={i}
                     disabled={m.pp <= 0}
-                    onClick={() => { audio.sfx("select"); void submit({ kind: "move", index: i }); }}
+                    onClick={() => { audio.sfx("select"); const mg = megaOn; setMegaOn(false); void submit({ kind: "move", index: i, mega: mg }); }}
                     className="pixel-btn flex flex-col items-start justify-center gap-0.5 px-3 py-1.5 text-left disabled:opacity-40"
                     style={{ backgroundColor: TYPE_COLORS[md.t] + "e8", color: "#fff" }}
                   >
@@ -345,7 +352,15 @@ function SingleBattleUI() {
                   </button>
                 );
               })}
-              <BackBtn onClick={() => setMode("menu")} label={t("common.back")} />
+              {session.canMegaPlayer() && (
+                <button
+                  onClick={() => { audio.sfx(megaOn ? "cancel" : "stat_up"); setMegaOn((v) => !v); }}
+                  className={`pixel-btn px-3 py-1.5 text-[13px] font-black ${megaOn ? "bg-amber-400 text-ink ring-2 ring-amber-200" : "bg-slate-700 text-amber-300"}`}
+                >
+                  ◆ MEGA {megaOn ? "✓" : ""}
+                </button>
+              )}
+              <BackBtn onClick={() => { setMegaOn(false); setMode("menu"); }} label={t("common.back")} />
             </div>
           )}
 

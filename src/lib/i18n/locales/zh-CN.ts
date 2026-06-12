@@ -222,6 +222,7 @@ const dict = {
       enemy_switch: "{trainer} 派出了 {name}！",
       cant_catch_trainer: "不能对训练家的宝可梦扔精灵球！",
       choose_target: "攻击哪一只？",
+      mega: "{name} 的 Mega 石爆发出耀眼光芒——Mega 进化！！",
       // status
       par_inflict: "{name} 麻痹了！可能无法行动！",
       brn_inflict: "{name} 被烧伤了！",
@@ -358,6 +359,12 @@ const dict = {
     "pecha-berry": { n: "桃桃果", d: "携带后，自动解除中毒。" },
     "rawst-berry": { n: "莓莓果", d: "携带后，自动解除烧伤。" },
     "aspear-berry": { n: "利木果", d: "携带后，自动解除冰冻。" },
+    venusaurite: { n: "妙蛙花进化石", d: "让妙蛙花在战斗中 Mega 进化的神秘石头。" },
+    "charizardite-y": { n: "喷火龙进化石Y", d: "让喷火龙在战斗中 Mega 进化的神秘石头。" },
+    blastoisinite: { n: "水箭龟进化石", d: "让水箭龟在战斗中 Mega 进化的神秘石头。" },
+    gengarite: { n: "耿鬼进化石", d: "让耿鬼在战斗中 Mega 进化的神秘石头。" },
+    gyaradosite: { n: "暴鲤龙进化石", d: "让暴鲤龙在战斗中 Mega 进化的神秘石头。" },
+    "mewtwonite-y": { n: "超梦进化石Y", d: "让超梦在战斗中 Mega 进化的神秘石头。" },
   },
   types: {
     normal: "一般", fire: "火", water: "水", electric: "电", grass: "草", ice: "冰",
