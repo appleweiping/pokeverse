@@ -141,6 +141,8 @@ export interface SaveData {
   stats?: Record<string, number>;
   /** unlocked achievement ids */
   achievements?: string[];
+  /** champion victory record */
+  hallOfFame?: { date: number; team: { speciesId: number; level: number }[] };
 }
 
 export interface ItemDef {

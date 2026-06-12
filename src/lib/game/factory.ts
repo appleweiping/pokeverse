@@ -50,7 +50,7 @@ export async function createMon(
   speciesId: number,
   level: number,
   ot: string,
-  opts: { ball?: string; rng?: () => number; item?: string | null } = {}
+  opts: { ball?: string; rng?: () => number; item?: string | null; shinyDen?: number } = {}
 ): Promise<Mon> {
   const rng = opts.rng ?? Math.random;
   const species = await getSpecies(speciesId);
@@ -69,7 +69,7 @@ export async function createMon(
     moves,
     curHP: stats[0],
     status: null,
-    shiny: rng() < 1 / 512,
+    shiny: rng() < 1 / (opts.shinyDen ?? 512),
     ball: opts.ball ?? "poke-ball",
     ot,
     ability: rollAbility(species, rng),

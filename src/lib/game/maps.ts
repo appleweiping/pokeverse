@@ -14,7 +14,7 @@ export const LEGEND: Record<string, T> = {
   E: T.BED, P: T.PC, c: T.COUNTER, h: T.HEALER,
   "-": T.CAVE_FLOOR, C: T.CAVE_WALL, L: T.LEDGE, S: T.SAND, F: T.GYM_FLOOR, X: T.STATUE,
   x: T.CUT_TREE, o: T.ROCK_SMASH, Z: T.BARRIER, z: T.SWITCH,
-  q: T.SWAMP, "@": T.WARP_PAD,
+  q: T.SWAMP, "@": T.WARP_PAD, n: T.SNOW, N: T.SNOW_GRASS, i: T.ICE,
 };
 
 export interface WarpDef {
@@ -49,7 +49,7 @@ export interface NpcDef {
   dir: Dir;
   palette: string;
   dialogKeys?: string[];
-  script?: "professor" | "nurse" | "mart" | "mom" | "rivalIdle" | "rod";
+  script?: "professor" | "nurse" | "mart" | "mom" | "rivalIdle" | "rod" | "champion" | "legend";
   trainer?: TrainerDef;
   /** only visible when this flag is truthy / falsy */
   ifFlag?: string;
@@ -230,6 +230,67 @@ const TRAINERS = {
     loseKey: "story.gym6_win",
     team: [{ speciesId: 64, level: 31 }, { speciesId: 80, level: 32 }, { speciesId: 97, level: 34 }],
     prize: 5800, badge: "mind",
+  } as TrainerDef,
+  skier1: {
+    id: "skier1", nameKey: "story.tn.skier", preKey: "story.trainer_skier_pre",
+    loseKey: "story.trainer_skier_lose",
+    team: [{ speciesId: 124, level: 36 }, { speciesId: 87, level: 36 }], prize: 1080,
+  } as TrainerDef,
+  skier2: {
+    id: "skier2", nameKey: "story.tn.skier", preKey: "story.trainer_skier_pre",
+    loseKey: "story.trainer_skier_lose",
+    team: [{ speciesId: 91, level: 37 }, { speciesId: 131, level: 37 }], prize: 1110,
+  } as TrainerDef,
+  gym7: {
+    id: "gym7", nameKey: "story.tn.gym7", preKey: "story.gym7_pre",
+    loseKey: "story.gym7_win",
+    team: [{ speciesId: 124, level: 38 }, { speciesId: 87, level: 38 }, { speciesId: 131, level: 40 }],
+    prize: 6800, badge: "frost",
+  } as TrainerDef,
+  tamer1: {
+    id: "tamer1", nameKey: "story.tn.tamer", preKey: "story.trainer_tamer_pre",
+    loseKey: "story.trainer_tamer_lose",
+    team: [{ speciesId: 117, level: 38 }, { speciesId: 148, level: 39 }], prize: 1170,
+  } as TrainerDef,
+  gym8: {
+    id: "gym8", nameKey: "story.tn.gym8", preKey: "story.gym8_pre",
+    loseKey: "story.gym8_win",
+    team: [{ speciesId: 117, level: 40 }, { speciesId: 130, level: 41 }, { speciesId: 148, level: 42 }],
+    prize: 8000, badge: "dragon",
+  } as TrainerDef,
+  vr1: {
+    id: "vr1", nameKey: "story.tn.ace", preKey: "story.trainer_ace_pre",
+    loseKey: "story.trainer_ace_lose",
+    team: [{ speciesId: 112, level: 41 }, { speciesId: 78, level: 41 }], prize: 1230,
+  } as TrainerDef,
+  vr2: {
+    id: "vr2", nameKey: "story.tn.ace", preKey: "story.trainer_ace_pre",
+    loseKey: "story.trainer_ace_lose",
+    team: [{ speciesId: 65, level: 42 }, { speciesId: 68, level: 42 }], prize: 1260,
+  } as TrainerDef,
+  e41: {
+    id: "e41", nameKey: "story.tn.e41", preKey: "story.e41_pre",
+    loseKey: "story.e41_lose",
+    team: [{ speciesId: 87, level: 42 }, { speciesId: 91, level: 42 }, { speciesId: 131, level: 44 }],
+    prize: 4200, theme: "league",
+  } as TrainerDef,
+  e42: {
+    id: "e42", nameKey: "story.tn.e42", preKey: "story.e42_pre",
+    loseKey: "story.e42_lose",
+    team: [{ speciesId: 57, level: 43 }, { speciesId: 106, level: 43 }, { speciesId: 68, level: 45 }],
+    prize: 4500, theme: "league",
+  } as TrainerDef,
+  e43: {
+    id: "e43", nameKey: "story.tn.e43", preKey: "story.e43_pre",
+    loseKey: "story.e43_lose",
+    team: [{ speciesId: 93, level: 43 }, { speciesId: 200, level: 44 }, { speciesId: 94, level: 46 }],
+    prize: 4800, theme: "league",
+  } as TrainerDef,
+  e44: {
+    id: "e44", nameKey: "story.tn.e44", preKey: "story.e44_pre",
+    loseKey: "story.e44_lose",
+    team: [{ speciesId: 148, level: 45 }, { speciesId: 142, level: 46 }, { speciesId: 149, level: 48 }],
+    prize: 5100, theme: "league",
   } as TrainerDef,
 };
 
@@ -650,6 +711,10 @@ export const MAPS: Record<string, MapDef> = {
       { x: 9, y: 17, to: "verdant-forest", tx: 10, ty: 1, dir: "down" },
       { x: 8, y: 0, to: "route-2", tx: 7, ty: 22, dir: "up" },
       { x: 9, y: 0, to: "route-2", tx: 7, ty: 22, dir: "up" },
+      {
+        x: 16, y: 1, to: "legend-den", tx: 5, ty: 7, dir: "up",
+        ifFlag: "legend_omen", lockedKey: "story.legend_quiet",
+      },
     ],
     signs: [{ x: 9, y: 6, textKey: "story.legend_spot" }],
     npcs: [
@@ -1091,7 +1156,7 @@ export const MAPS: Record<string, MapDef> = {
     nameKey: "story.sign_meadow",
     music: "town",
     grid: [
-      "TTTTTTTTTTTTTTTTTTTTTT",
+      "TTTTTTTTTT,,TTTTTTTTTT",
       "T....................T",
       "T..GGGGG....RRRRR....T",
       "T..GGGGG....RRRRR....T",
@@ -1114,6 +1179,8 @@ export const MAPS: Record<string, MapDef> = {
       { x: 5, y: 4, to: "gym-meadow", tx: 6, ty: 9, dir: "up" },
       { x: 14, y: 4, to: "meadow-center", tx: 6, ty: 4, dir: "up" },
       { x: 5, y: 9, to: "meadow-mart", tx: 5, ty: 4, dir: "up" },
+      { x: 10, y: 0, to: "route-6", tx: 8, ty: 22, dir: "up" },
+      { x: 11, y: 0, to: "route-6", tx: 9, ty: 22, dir: "up" },
     ],
     signs: [{ x: 4, y: 12, textKey: "story.sign_meadow" }],
     npcs: [
@@ -1469,6 +1536,359 @@ export const MAPS: Record<string, MapDef> = {
     items: [
       { x: 12, y: 8, item: "tm-94", qty: 1, flag: "item:st-tm94" },
     ],
+  },
+
+  // ========================================================= ROUTE 6 (snowfield)
+  "route-6": {
+    id: "route-6",
+    nameKey: "story.sign_route6",
+    music: "route",
+    grid: [
+      "TTTTTTTT,,TTTTTTTT",
+      "Tnnnnnn,,,,nnnnnnT",
+      "TnNNNn,,,,,,nNNNnT",
+      "TnNNNn,,,,,,nNNNnT",
+      "TnNNNn,,,,,,nNNNnT",
+      "Tnnnnnn,,,,nnnnnnT",
+      "Tnnnnnn,,,,nnnnnnT",
+      "Tnn,,,,,,,,,,,nnnT",
+      "Tnn,,nnnnnnnn,nnnT",
+      "Tnn,,nNNNNNnn,nnnT",
+      "Tnn,,nNNNNNnn,nnnT",
+      "Tnn,,nNNNNNnn,nnnT",
+      "Tnn,,nnnnnnnn,nnnT",
+      "Tnn,,,,,,,,,,,nnnT",
+      "Tnnnnnn,,,,nnnnnnT",
+      "TnNNNn,,,,,,nNNNnT",
+      "TnNNNn,,,,,,nNNNnT",
+      "Tnnnnnn,,,,nnnnnnT",
+      "Tnnnnnn,,,,nnnnnnT",
+      "Tnnnnnn,,,,nnnnnnT",
+      "Tnnnnnn,,,,nnnnnnT",
+      "Tnnnnnn,,,,nnnnnnT",
+      "Tnnnnnn,,,,nnnnnnT",
+      "TTTTTTTT,,TTTTTTTT",
+    ],
+    warps: [
+      { x: 8, y: 23, to: "meadow-town", tx: 10, ty: 1, dir: "down" },
+      { x: 9, y: 23, to: "meadow-town", tx: 11, ty: 1, dir: "down" },
+      { x: 8, y: 0, to: "frost-village", tx: 10, ty: 14, dir: "up" },
+      { x: 9, y: 0, to: "frost-village", tx: 11, ty: 14, dir: "up" },
+    ],
+    signs: [{ x: 13, y: 7, textKey: "story.sign_route6" }],
+    npcs: [
+      { id: "tr-skier1", x: 6, y: 9, dir: "right", palette: "lass", trainer: TRAINERS.skier1 },
+      { id: "tr-skier2", x: 13, y: 16, dir: "left", palette: "boy", trainer: TRAINERS.skier2 },
+      { id: "r6-old", x: 14, y: 5, dir: "left", palette: "oldman", dialogKeys: ["story.npc_route6a"] },
+    ],
+    items: [
+      { x: 2, y: 13, item: "hyper-potion", qty: 2, flag: "item:r6-hp" },
+      { x: 15, y: 20, item: "tm-8", qty: 1, flag: "item:r6-tm8" },
+    ],
+    encounters: {
+      rate: 0.13,
+      table: [
+        [215, 25, 34, 38], [220, 25, 34, 37], [124, 10, 36, 38], [86, 20, 34, 37], [42, 20, 34, 37],
+      ],
+    },
+  },
+
+  // ========================================================= FROST VILLAGE
+  "frost-village": {
+    id: "frost-village",
+    nameKey: "story.sign_frost",
+    music: "town",
+    grid: [
+      "TTTTTTTTTT,,TTTTTTTTTT",
+      "Tnnnnnnnnn,,nnnnnnnnnT",
+      "TnnGGGGGnnnnRRRRRnnnnT",
+      "TnnGGGGGnnnnRRRRRnnnnT",
+      "TnnGGGGGnnnnRRRRRnnnnT",
+      "TnnWwDwWnnnnWwDwWnnnnT",
+      "Tnnnn,nnnnnnnnn,nnnnnT",
+      "T,,,,,,,,,,,,,,,,,,,,T",
+      "TnnBBBBBnnnnnnnnnnnnnT",
+      "TnnBBBBBnnnnnnnnnnnnnT",
+      "TnnWwDwWnnnnnsnnnnnnnT",
+      "Tnnnn,nnnnnnnnnnnnnnnT",
+      "T,,,,,,,,,,,,,,,,,,,,T",
+      "Tnnnnnnnnn,,nnnnnnnnnT",
+      "Tnnnnnnnnn,,nnnnnnnnnT",
+      "TTTTTTTTTT,,TTTTTTTTTT",
+    ],
+    warps: [
+      { x: 10, y: 15, to: "route-6", tx: 8, ty: 1, dir: "down" },
+      { x: 11, y: 15, to: "route-6", tx: 9, ty: 1, dir: "down" },
+      { x: 10, y: 0, to: "dragon-ridge", tx: 9, ty: 14, dir: "up" },
+      { x: 11, y: 0, to: "dragon-ridge", tx: 10, ty: 14, dir: "up" },
+      { x: 5, y: 5, to: "gym-frost", tx: 6, ty: 12, dir: "up" },
+      { x: 14, y: 5, to: "frost-center", tx: 6, ty: 4, dir: "up" },
+      { x: 5, y: 10, to: "frost-mart", tx: 5, ty: 4, dir: "up" },
+    ],
+    signs: [{ x: 13, y: 10, textKey: "story.sign_frost" }],
+    npcs: [
+      { id: "fv-girl", x: 8, y: 6, dir: "down", palette: "girl", dialogKeys: ["story.npc_frost1"] },
+      { id: "fv-old", x: 16, y: 11, dir: "left", palette: "oldman", dialogKeys: ["story.npc_frost2"] },
+    ],
+    items: [],
+  },
+  "frost-center": {
+    id: "frost-center",
+    nameKey: "story.sign_frost",
+    music: "center",
+    indoor: true,
+    grid: [
+      "IIIIIIIIIIII",
+      "IP________hI",
+      "I___cccc___I",
+      "I__________I",
+      "I__________I",
+      "I_____m____I",
+      "IIIIIIIIIIII",
+    ],
+    warps: [{ x: 6, y: 5, to: "frost-village", tx: 14, ty: 6, dir: "down" }],
+    signs: [],
+    npcs: [{ id: "nurse6", x: 5, y: 1, dir: "down", palette: "nurse", script: "nurse" }],
+    items: [],
+  },
+  "frost-mart": {
+    id: "frost-mart",
+    nameKey: "story.sign_frost",
+    music: "center",
+    indoor: true,
+    grid: [
+      "IIIIIIIIII",
+      "Ibbb_____I",
+      "I________I",
+      "I__cc____I",
+      "I________I",
+      "I____m___I",
+      "IIIIIIIIII",
+    ],
+    warps: [{ x: 5, y: 5, to: "frost-village", tx: 5, ty: 11, dir: "down" }],
+    signs: [],
+    npcs: [{ id: "clerk6", x: 3, y: 2, dir: "down", palette: "clerk", script: "mart" }],
+    items: [],
+  },
+
+  // ========================================================= FROST GYM (ice sliding)
+  "gym-frost": {
+    id: "gym-frost",
+    nameKey: "story.sign_gym7",
+    music: "gym",
+    indoor: true,
+    grid: [
+      "IIIIIIIIIIII",
+      "IFFFFFFFFFFI",
+      "IiiiiiiiiiiI",
+      "IiiiiiiiiiiI",
+      "IiiiXiiiiiXI",
+      "IiiiiiiiiiiI",
+      "IiiiiiXiiiiI",
+      "IiiiiiiiiiiI",
+      "IXiiiiiiiiiI",
+      "IiiiiiiiiiiI",
+      "IiiiiiiiiiiI",
+      "IFFFFFFFFFFI",
+      "IFFFFFmFFFFI",
+      "IIIIIIIIIIII",
+    ],
+    warps: [{ x: 6, y: 12, to: "frost-village", tx: 5, ty: 6, dir: "down" }],
+    signs: [],
+    npcs: [
+      { id: "gym7-leader", x: 5, y: 1, dir: "down", palette: "leader", trainer: TRAINERS.gym7 },
+    ],
+    items: [],
+  },
+
+  // ========================================================= DRAGON RIDGE
+  "dragon-ridge": {
+    id: "dragon-ridge",
+    nameKey: "story.sign_dragon",
+    music: "cave",
+    grid: [
+      "TTTTTTTTT,,TTTTTTTTT",
+      "Trrnnnnnn,,nnnnnnrrT",
+      "Trnnnnnn,,,,nnnnnnrT",
+      "Tnnrrnnn,,,,nnnrrnnT",
+      "Tnnrrnn,,,,,,nnrrnnT",
+      "Tnnnnnn,,,,,,nnnnnnT",
+      "TnnGGGGGGGnnnnnnnnnT",
+      "TnnGGGGGGGnnsnnnnnnT",
+      "TnnGGGGGGGnnnnnnnnnT",
+      "TnnWwwDwwWnnnnrrnnnT",
+      "Tnnnnn,nnnnnnnrrnnnT",
+      "T,,,,,,,,,,,,,,,,,,T",
+      "Tnnnnnnnn,,nnnnnnnnT",
+      "Tnnnnnnnn,,nnnnnnnnT",
+      "TTTTTTTTT,,TTTTTTTTT",
+    ],
+    warps: [
+      { x: 9, y: 14, to: "frost-village", tx: 10, ty: 1, dir: "down" },
+      { x: 10, y: 14, to: "frost-village", tx: 11, ty: 1, dir: "down" },
+      { x: 6, y: 9, to: "gym-dragon", tx: 6, ty: 9, dir: "up" },
+      { x: 9, y: 0, to: "victory-road", tx: 8, ty: 14, dir: "up", ifFlag: "badges:8", lockedKey: "story.vr_locked" },
+      { x: 10, y: 0, to: "victory-road", tx: 9, ty: 14, dir: "up", ifFlag: "badges:8", lockedKey: "story.vr_locked" },
+    ],
+    signs: [{ x: 12, y: 7, textKey: "story.sign_dragon" }],
+    npcs: [
+      { id: "tr-tamer1", x: 15, y: 5, dir: "left", palette: "boy", trainer: TRAINERS.tamer1 },
+      { id: "dr-old", x: 5, y: 12, dir: "right", palette: "oldman", dialogKeys: ["story.npc_dragon1"] },
+    ],
+    items: [
+      { x: 2, y: 12, item: "max-potion", qty: 1, flag: "item:dr-mp" },
+    ],
+  },
+
+  // ========================================================= DRAGON GYM
+  "gym-dragon": {
+    id: "gym-dragon",
+    nameKey: "story.sign_gym8",
+    music: "gym",
+    indoor: true,
+    grid: [
+      "IIIIIIIIIIII",
+      "IFFFFFFFFFFI",
+      "IFFXFFFFXFFI",
+      "IFFFFFFFFFFI",
+      "IFFFFFFFFFFI",
+      "IFFXFFFFXFFI",
+      "IFFFFFFFFFFI",
+      "IFFFFFFFFFFI",
+      "IFFXFFFFXFFI",
+      "IFFFFFFFFFFI",
+      "IFFFFFmFFFFI",
+      "IIIIIIIIIIII",
+    ],
+    warps: [{ x: 6, y: 10, to: "dragon-ridge", tx: 6, ty: 10, dir: "down" }],
+    signs: [],
+    npcs: [
+      { id: "gym8-leader", x: 5, y: 1, dir: "down", palette: "leader", trainer: TRAINERS.gym8 },
+      {
+        id: "gym8-aide", x: 5, y: 6, dir: "down", palette: "boy",
+        trainer: {
+          id: "gym8aide", nameKey: "story.tn.tamer", preKey: "story.trainer_tamer_pre",
+          loseKey: "story.trainer_tamer_lose",
+          team: [{ speciesId: 147, level: 39 }, { speciesId: 117, level: 39 }], prize: 1170,
+        },
+      },
+    ],
+    items: [],
+  },
+
+  // ========================================================= VICTORY ROAD
+  "victory-road": {
+    id: "victory-road",
+    nameKey: "story.sign_victory",
+    music: "cave",
+    grid: [
+      "CCCCCCCC--CCCCCCCC",
+      "C----------------C",
+      "C--CC---gg---CC--C",
+      "C--CC---gg---CC--C",
+      "C----------------C",
+      "C---o---CC---o---C",
+      "C-------CC-------C",
+      "C--gg--------gg--C",
+      "C--gg--------gg--C",
+      "C-------CC-------C",
+      "C---x---CC---x---C",
+      "C----------------C",
+      "C--CC---gg---CC--C",
+      "C--CC---gg---CC--C",
+      "C----------------C",
+      "CCCCCCCC--CCCCCCCC",
+    ],
+    warps: [
+      { x: 8, y: 15, to: "dragon-ridge", tx: 9, ty: 1, dir: "down" },
+      { x: 9, y: 15, to: "dragon-ridge", tx: 10, ty: 1, dir: "down" },
+      { x: 8, y: 0, to: "league-hall", tx: 6, ty: 19, dir: "up" },
+      { x: 9, y: 0, to: "league-hall", tx: 6, ty: 19, dir: "up" },
+    ],
+    signs: [{ x: 16, y: 1, textKey: "story.sign_victory" }],
+    npcs: [
+      { id: "tr-vr1", x: 4, y: 6, dir: "right", palette: "boy", trainer: TRAINERS.vr1 },
+      { id: "tr-vr2", x: 13, y: 11, dir: "left", palette: "lass", trainer: TRAINERS.vr2 },
+    ],
+    items: [
+      { x: 1, y: 14, item: "full-restore", qty: 2, flag: "item:vr-fr" },
+      { x: 16, y: 14, item: "ultra-ball", qty: 3, flag: "item:vr-ub" },
+    ],
+    encounters: {
+      rate: 0.1,
+      table: [
+        [42, 25, 38, 42], [67, 25, 38, 42], [95, 20, 39, 43], [74, 15, 38, 41], [105, 15, 39, 42],
+      ],
+    },
+  },
+
+  // ========================================================= LEAGUE HALL
+  "league-hall": {
+    id: "league-hall",
+    nameKey: "story.sign_league",
+    music: "league",
+    indoor: true,
+    grid: [
+      "IIIIIIIIIIIII",
+      "IFFFFFFFFFFFI",
+      "IFFFFFFFFFFFI",
+      "IXFFFFFFFFFXI",
+      "IFFFFFFFFFFFI",
+      "IXFFFFFFFFFXI",
+      "IFFFFFFFFFFFI",
+      "IXFFFFFFFFFXI",
+      "IFFFFFFFFFFFI",
+      "IXFFFFFFFFFXI",
+      "IFFFFFFFFFFFI",
+      "IXFFFFFFFFFXI",
+      "IFFFFFFFFFFFI",
+      "IXFFFFFFFFFXI",
+      "IFFFFFFFFFFFI",
+      "IXFFFFFFFFFXI",
+      "IFFFFFFFFFFFI",
+      "IFFFFFFFFFFFI",
+      "IFFFFFFFFFFFI",
+      "IFFFFFFmFFFFI",
+      "IIIIIIIIIIIII",
+    ],
+    warps: [{ x: 7, y: 19, to: "victory-road", tx: 8, ty: 1, dir: "down" }],
+    signs: [],
+    npcs: [
+      { id: "tr-e41", x: 6, y: 16, dir: "down", palette: "lass", trainer: TRAINERS.e41 },
+      { id: "tr-e42", x: 6, y: 13, dir: "down", palette: "leader", trainer: TRAINERS.e42, ifFlag: "tr:e41" },
+      { id: "tr-e43", x: 6, y: 10, dir: "down", palette: "professor", trainer: TRAINERS.e43, ifFlag: "tr:e42" },
+      { id: "tr-e44", x: 6, y: 7, dir: "down", palette: "clerk", trainer: TRAINERS.e44, ifFlag: "tr:e43" },
+      { id: "champion", x: 6, y: 2, dir: "down", palette: "rival", script: "champion", ifFlag: "tr:e44" },
+    ],
+    items: [],
+  },
+
+  // ========================================================= LEGEND DEN
+  "legend-den": {
+    id: "legend-den",
+    nameKey: "story.sign_den",
+    music: "cave",
+    indoor: true,
+    grid: [
+      "CCCCCCCCCCCC",
+      "C----------C",
+      "C--CC--CC--C",
+      "C----------C",
+      "C----------C",
+      "C----------C",
+      "C--CC--CC--C",
+      "C----------C",
+      "CCCCC--CCCCC",
+    ],
+    warps: [
+      { x: 5, y: 8, to: "moonview-cave", tx: 16, ty: 2, dir: "down" },
+      { x: 6, y: 8, to: "moonview-cave", tx: 16, ty: 2, dir: "down" },
+    ],
+    signs: [],
+    npcs: [
+      { id: "legend-suicune", x: 5, y: 2, dir: "down", palette: "lass", script: "legend", ifNotFlag: "legend_done" },
+    ],
+    items: [],
   },
 };
 

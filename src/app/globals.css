@@ -121,6 +121,15 @@ img.sprite {
 .anim-flash { animation: flashWhite 0.3s linear 2; }
 .anim-wobble { animation: ballWobble 0.7s ease-in-out; }
 
+/* end credits roll */
+@keyframes creditsRoll {
+  from { transform: translateY(0); }
+  to { transform: translateY(-78%); }
+}
+.credits-roll {
+  animation: creditsRoll 28s linear forwards;
+}
+
 /* hit particle burst */
 @keyframes particleFly {
   from { transform: translate(0, 0) scale(1); opacity: 1; }

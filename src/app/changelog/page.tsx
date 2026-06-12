@@ -5,6 +5,16 @@ import { useI18n } from "@/lib/i18n";
 
 const RELEASES: { v: string; date: string; zh: string[]; en: string[] }[] = [
   {
+    v: "v0.8.0", date: "2026-06-12",
+    zh: ["联盟终章：四天王连战 + 冠军小蓝战", "冰系道馆（滑冰谜题）+ 龙系道馆 + 胜利之路", "传说宝可梦水君捕捉战（专属 BGM）", "通关制作名单 + 殿堂登录", "全图鉴闪光奖励（512→64）", "新曲 3 首、43 图、五语言 58 条新文本"],
+    en: ["League finale: Elite Four gauntlet + Champion Blue", "Ice Gym (sliding puzzle) + Dragon Gym + Victory Road", "Legendary Suicune encounter (unique BGM)", "End credits + Hall of Fame", "Full-dex shiny reward (512→64)", "3 new tracks, 43 maps, 58 new lines ×5 languages"],
+  },
+  {
+    v: "v0.7.0", date: "2026-06-12",
+    zh: ["5 号水道冲浪海路 + 水面遇敌", "钓鱼系统（旧钓竿 + 逐图钓鱼表）", "紫晶港毒系道馆 + 星见塔超能道馆（传送谜题）", "极光队二三幕（占塔 + 海上拦截）", "传说前兆剧情链"],
+    en: ["Route 5 surf passage + water encounters", "Fishing system (Old Rod + per-map tables)", "Poison Gym at Amethyst Port + Psychic Gym tower (teleport puzzle)", "Team Aurora acts 2 & 3", "Legendary omen story chain"],
+  },
+  {
     v: "v0.6.0", date: "2026-06-12",
     zh: ["联机对战升级 3v3（含换人与强制替补）", "对战回放系统（保存/播放/倍速）", "PWA 离线支持（可安装、数据与精灵缓存）", "33 枚成就 + 成就页", "更新日志页"],
     en: ["Online battles upgraded to 3v3 with switching", "Battle replays (save / playback / speed)", "PWA offline support (installable, data & sprite caching)", "33 achievements + achievements page", "Changelog page"],

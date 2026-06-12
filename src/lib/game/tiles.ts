@@ -17,7 +17,7 @@ export enum T {
   FLOOR, IWALL, RUG, MAT, TABLE, SHELF, BED, PC, COUNTER, HEALER,
   CAVE_FLOOR, CAVE_WALL, LEDGE, SAND, GYM_FLOOR, STATUE,
   CUT_TREE, ROCK_SMASH, BARRIER, SWITCH, BARRIER_OFF,
-  SWAMP, WARP_PAD,
+  SWAMP, WARP_PAD, SNOW, SNOW_GRASS, ICE,
   COUNT,
 }
 
@@ -29,7 +29,7 @@ export const SOLID = new Set<T>([
 ]);
 
 /** Tiles that can trigger a wild encounter when stepped on. */
-export const ENCOUNTER_TILES = new Set<T>([T.TALLGRASS]);
+export const ENCOUNTER_TILES = new Set<T>([T.TALLGRASS, T.SNOW_GRASS]);
 
 // deterministic per-tile noise so speckles don't flicker between frames
 function hash(x: number, y: number, s: number): number {
@@ -586,6 +586,57 @@ function paintTile(c: Ctx, t: T, frame: number, seed: number) {
       c.fillStyle = "#d8c0ec";
       px(c, 5 + bo, 4 - bo, 1, 1); px(c, 12 - bo, 9 + bo, 1, 1);
       if (frame === 1) { c.fillStyle = "#b08ad0"; px(c, 8, 13, 1, 1); }
+      break;
+    }
+    case T.SNOW: {
+      // fresh snowfield — white with cool-blue speckles
+      c.fillStyle = "#f0f6fc";
+      px(c, 0, 0, 16, 16);
+      c.fillStyle = "#d8e6f4";
+      for (let i = 0; i < 5; i++) {
+        const x = Math.floor(hash(i, seed, 13) * 13);
+        const y = Math.floor(hash(seed, i, 14) * 13);
+        px(c, x, y, 2, 1); px(c, x + 1, y + 1, 1, 1);
+      }
+      c.fillStyle = "#ffffff";
+      px(c, Math.floor(hash(seed, 5, 6) * 14), Math.floor(hash(6, seed, 7) * 14), 2, 1);
+      break;
+    }
+    case T.SNOW_GRASS: {
+      // frosted tufts poking through snow (encounter tile)
+      c.fillStyle = "#f0f6fc";
+      px(c, 0, 0, 16, 16);
+      c.fillStyle = "#d8e6f4";
+      px(c, 2, 13, 3, 1); px(c, 11, 14, 3, 1);
+      const sway = frame === 0 ? 0 : 1;
+      for (let i = 0; i < 3; i++) {
+        const bx = 1 + i * 5 + (i === 1 ? sway : -sway);
+        const by = 4 + (i % 2) * 2;
+        c.fillStyle = "#5a8aa8";
+        px(c, bx, by + 2, 1, 8); px(c, bx + 4, by + 2, 1, 8);
+        px(c, bx + 1, by, 1, 10); px(c, bx + 3, by, 1, 10);
+        px(c, bx + 2, by + 3, 1, 7);
+        c.fillStyle = "#8ab8d0";
+        px(c, bx + 1, by + 1, 1, 4); px(c, bx + 3, by + 1, 1, 4);
+        // snow caps on blades
+        c.fillStyle = "#ffffff";
+        px(c, bx + 1, by, 1, 1); px(c, bx + 3, by, 1, 1);
+      }
+      break;
+    }
+    case T.ICE: {
+      // slick ice — pale cyan with diagonal shine cracks
+      c.fillStyle = "#b8e0f0";
+      px(c, 0, 0, 16, 16);
+      c.fillStyle = "#98ccdf";
+      px(c, 0, 13, 16, 3); px(c, 12, 2, 3, 4);
+      c.fillStyle = "#d8f0fa";
+      px(c, 2, 2, 5, 2); px(c, 8, 7, 4, 2);
+      c.fillStyle = "#ffffff";
+      px(c, 3, 3, 2, 1); px(c, 9, 8, 2, 1); px(c, 13, 12, 1, 1);
+      // crack lines
+      c.fillStyle = "#7ab4cc";
+      px(c, 5, 5, 1, 3); px(c, 6, 8, 1, 2); px(c, 10, 3, 1, 2); px(c, 11, 5, 1, 2);
       break;
     }
     case T.WARP_PAD: {

@@ -312,7 +312,14 @@ export class Overworld {
     // warp?
     const w = this.map.warps.find((w) => w.x === this.tx && w.y === this.ty);
     if (w) {
-      if (w.ifFlag && !g.flag(w.ifFlag)) {
+      // "badges:N" pseudo-flag gates on badge count
+      const badgeGate = w.ifFlag?.match(/^badges:(\d+)$/);
+      const blocked = w.ifFlag
+        ? badgeGate
+          ? (g.save?.badges.length ?? 0) < Number(badgeGate[1])
+          : !g.flag(w.ifFlag)
+        : false;
+      if (blocked) {
         this.busy = true;
         await g.showDialogue([tr(w.lockedKey ?? "game.field.door_locked")]);
         this.busy = false;
@@ -335,6 +342,16 @@ export class Overworld {
       this.busy = false;
       return;
     }
+    // ice: slide onward in the facing direction until hitting something
+    const standing = tileAt(this.map, this.tx, this.ty);
+    if (standing === T.ICE && !this.busy) {
+      const [dx, dy] = DIRV[this.dir];
+      if (this.passable(this.tx + dx, this.ty + dy)) {
+        this.startMove(this.tx + dx, this.ty + dy);
+        return;
+      }
+    }
+
     // wild encounter (tall grass, or open water while surfing)
     const tile = tileAt(this.map, this.tx, this.ty);
     if ((ENCOUNTER_TILES.has(tile) || tile === T.WATER) && this.map.encounters && save && save.party.some((m) => m.curHP > 0)) {
@@ -543,7 +560,10 @@ export class Overworld {
     audio.sfx("select");
 
     // badge -> post-victory message key prefix
-    const BADGE_GYM: Record<string, string> = { boulder: "gym1", tidal: "gym2", volt: "gym3", meadow: "gym4" };
+    const BADGE_GYM: Record<string, string> = {
+      boulder: "gym1", tidal: "gym2", volt: "gym3", meadow: "gym4",
+      venom: "gym5", mind: "gym6", frost: "gym7", dragon: "gym8",
+    };
 
     if (d.trainer && !g.flag("tr:" + d.trainer.id)) {
       await g.showDialogue([tr(d.trainer.preKey)]);
@@ -600,6 +620,14 @@ export class Overworld {
         } else {
           await g.showDialogue([tr("story.rod_hint")]);
         }
+        break;
+      }
+      case "legend": {
+        await this.scriptLegend(npc);
+        break;
+      }
+      case "champion": {
+        await this.scriptChampion();
         break;
       }
       default:
@@ -668,6 +696,67 @@ export class Overworld {
     save.flags.lastHealY = this.ty;
     g.persist();
     await g.showDialogue([tr("game.field.heal_done")]);
+  }
+
+  /** Suicune — the Aurora Beast. One-shot static encounter at Lv.50. */
+  private async scriptLegend(npc: NpcState) {
+    const g = useGame.getState();
+    await g.showDialogue([tr("story.legend_meet1")]);
+    audio.sfx("faint"); // roar
+    await g.showDialogue([tr("story.legend_meet2")]);
+    await g.startWildBattle(245, 50, "legend");
+    await waitForOverworld();
+    g.setFlag("legend_done", 1);
+    this.npcs = this.npcs.filter((n) => n !== npc);
+    if (g.save?.dexCaught.includes(245)) {
+      await g.showDialogue([tr("story.legend_caught")]);
+    } else {
+      await g.showDialogue([tr("story.legend_gone")]);
+    }
+    g.persist();
+    void g.checkAchv();
+  }
+
+  /** Champion Blue — his ace counters your starter. Victory enters the Hall of Fame. */
+  private async scriptChampion() {
+    const g = useGame.getState();
+    const save = g.save!;
+    if (g.flag("champion_done")) {
+      await g.showDialogue([tr("story.champion_after")]);
+      return;
+    }
+    await g.showDialogue([tr("story.champion_pre1"), tr("story.champion_pre2")]);
+    const starter = Number(g.flag("starter")) || 1;
+    // ace beats your starter: grass->fire(6), fire->water(9), water->grass(3)
+    const ace = starter === 1 ? 6 : starter === 4 ? 9 : 3;
+    const def: TrainerDef = {
+      id: "champion", nameKey: "story.tn.champion", preKey: "story.champion_pre2",
+      loseKey: "story.champion_lose",
+      team: [
+        { speciesId: 18, level: 47 },
+        { speciesId: 65, level: 47 },
+        { speciesId: 112, level: 47 },
+        { speciesId: 59, level: 48 },
+        { speciesId: 103, level: 48 },
+        { speciesId: ace, level: 50 },
+      ],
+      prize: 12000, theme: "league",
+    };
+    await g.startTrainerBattle(def);
+    await waitForOverworld();
+    if (!g.flag("tr:champion")) return; // lost — try again later
+    g.setFlag("champion_done", 1);
+    await g.showDialogue([tr("story.champion_lose"), tr("story.champion_hof")]);
+    // Hall of Fame registration
+    save.hallOfFame = {
+      date: Date.now(),
+      team: save.party.map((m) => ({ speciesId: m.speciesId, level: m.level })),
+    };
+    audio.sfx("badge");
+    g.persist();
+    void g.checkAchv();
+    // roll credits
+    useGame.setState({ credits: true });
   }
 
   private async scriptMom() {

@@ -503,6 +503,108 @@ K:2 K:2 S:2 H:2 K:2 H:2 S:2 K:2 K:2 S:2 K:2 S:2 K:2 S:2 S:2 S:2`,
     ],
   },
 
+  // ======================================================== LEGEND BATTLE (D dorian, mythic)
+  legend: {
+    bpm: 150,
+    channels: [
+      {
+        wave: "square", vol: 0.2,
+        notes: `
+D5:2 F5:2 A5:2 C6:2 B5:2 A5:2 F5:2 D5:2
+E5:2 G5:2 B5:2 D6:2 C6:2 B5:2 G5:2 E5:2
+D5:2 F5:2 A5:2 C6:2 D6:4 C6:2 A5:2
+B5:4 G5:4 E5:4 A5:4`,
+      },
+      {
+        wave: "square", vol: 0.09,
+        notes: `
+D4:2 A4:2 D4:2 A4:2 D4:2 A4:2 D4:2 A4:2
+E4:2 B4:2 E4:2 B4:2 E4:2 B4:2 E4:2 B4:2
+D4:2 A4:2 D4:2 A4:2 D4:2 A4:2 D4:2 A4:2
+G4:2 D5:2 G4:2 D5:2 A4:2 E5:2 A4:2 E5:2`,
+      },
+      {
+        wave: "triangle", vol: 0.55,
+        notes: `
+D2:2 D2:2 D3:2 D2:2 D2:2 D3:2 D2:2 D2:2
+E2:2 E2:2 E3:2 E2:2 E2:2 E3:2 E2:2 E2:2
+D2:2 D2:2 D3:2 D2:2 D2:2 D3:2 D2:2 D2:2
+G2:4 G2:4 A2:4 A2:4`,
+      },
+      {
+        wave: "noise", vol: 0.36,
+        notes: `K:2 H:2 S:2 H:2 K:2 K:2 S:2 H:2 K:2 H:2 S:2 H:2 K:2 K:2 S:2 H:2
+K:2 H:2 S:2 H:2 K:2 K:2 S:2 H:2 K:2 S:2 K:2 S:2 K:2 S:2 S:2 S:2`,
+      },
+    ],
+  },
+
+  // ======================================================== LEAGUE (F lydian, solemn)
+  league: {
+    bpm: 132,
+    channels: [
+      {
+        wave: "square", vol: 0.19,
+        notes: `
+F5:4 A5:4 C6:4 B5:2 A5:2
+G5:4 B5:4 D6:4 C6:2 B5:2
+F5:4 A5:4 C6:2 D6:2 E6:4
+F6:8 C6:4 A5:4`,
+      },
+      {
+        wave: "square", vol: 0.09,
+        notes: `
+F4:2 A4:2 C5:2 A4:2 F4:2 A4:2 C5:2 A4:2
+G4:2 B4:2 D5:2 B4:2 G4:2 B4:2 D5:2 B4:2
+F4:2 A4:2 C5:2 A4:2 G4:2 B4:2 D5:2 B4:2
+F4:2 A4:2 C5:2 A4:2 F4:2 C5:2 F5:2 C5:2`,
+      },
+      {
+        wave: "triangle", vol: 0.52,
+        notes: `
+F2:4 C3:4 F2:4 C3:4
+G2:4 D3:4 G2:4 D3:4
+F2:4 C3:4 G2:4 G2:4
+F2:4 C3:4 F2:8`,
+      },
+      {
+        wave: "noise", vol: 0.3,
+        notes: `K:4 H:4 S:4 H:4 K:4 H:4 S:4 H:4 K:4 H:4 S:4 H:4 K:4 S:4 K:4 S:4`,
+      },
+    ],
+  },
+
+  // ======================================================== CREDITS (C major, warm)
+  credits: {
+    bpm: 88,
+    channels: [
+      {
+        wave: "square", vol: 0.16,
+        notes: `
+E5:4 G5:4 C6:6 B5:2
+A5:4 G5:4 E5:8
+F5:4 A5:4 G5:6 E5:2
+D5:4 E5:4 C5:8`,
+      },
+      {
+        wave: "square", vol: 0.08,
+        notes: `
+C4:2 E4:2 G4:2 E4:2 C4:2 E4:2 G4:2 E4:2
+A3:2 C4:2 E4:2 C4:2 A3:2 C4:2 E4:2 C4:2
+F3:2 A3:2 C4:2 A3:2 C4:2 E4:2 G4:2 E4:2
+G3:2 B3:2 D4:2 B3:2 C4:2 E4:2 G4:2 C5:2`,
+      },
+      {
+        wave: "triangle", vol: 0.45,
+        notes: `C3:8 G2:8 A2:8 E2:8 F2:8 C3:8 G2:8 C3:8`,
+      },
+      {
+        wave: "noise", vol: 0.1,
+        notes: `H:8 H:8 H:8 H:8 H:8 H:8 H:8 H:8`,
+      },
+    ],
+  },
+
   // ======================================================== EVOLUTION (rising)
   evolution: {
     bpm: 132,

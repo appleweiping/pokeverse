@@ -9,6 +9,7 @@ import DialogueUI from "@/components/game/DialogueUI";
 import TitleScreen from "@/components/game/TitleScreen";
 import MenuUI from "@/components/game/MenuUI";
 import EvolutionModal from "@/components/game/EvolutionModal";
+import CreditsModal from "@/components/game/CreditsModal";
 import VirtualPad from "@/components/game/VirtualPad";
 
 const BattleUI = dynamic(() => import("@/components/game/BattleUI"), { ssr: false });
@@ -40,6 +41,7 @@ export default function PlayPage() {
       {(menuOpen || submenu) && <MenuUI />}
       <DialogueUI />
       {evolution && <EvolutionModal />}
+      <CreditsModal />
       <VirtualPad engineRef={engineRef} />
 
       {/* desktop menu hint */}

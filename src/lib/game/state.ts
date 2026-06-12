@@ -81,6 +81,8 @@ interface GameStore {
   battleSession: BattleSession | null;
   battleTrainer: TrainerInfo | null;
   toast: string | null;
+  /** end-credits roll active */
+  credits: boolean;
   /** bumps whenever party/bag mutate so React re-renders */
   tick: number;
 
@@ -113,7 +115,7 @@ interface GameStore {
   setFlag: (k: string, v: number) => void;
   flag: (k: string) => number;
   healParty: () => Promise<void>;
-  startWildBattle: (speciesId: number, level: number) => Promise<void>;
+  startWildBattle: (speciesId: number, level: number, theme?: string) => Promise<void>;
   startTrainerBattle: (def: TrainerDef) => Promise<void>;
   endBattle: (result: BattleResult) => Promise<void>;
   runLearnFlow: (reqs: LearnRequest[]) => Promise<void>;
@@ -136,6 +138,7 @@ export const useGame = create<GameStore>((set, get) => ({
   battleSession: null,
   battleTrainer: null,
   toast: null,
+  credits: false,
   tick: 0,
 
   // ----------------------------------------------------------- lifecycle
@@ -277,14 +280,16 @@ export const useGame = create<GameStore>((set, get) => ({
     get().bump();
   },
 
-  startWildBattle: async (speciesId, level) => {
+  startWildBattle: async (speciesId, level, theme) => {
     const s = get().save;
     if (!s || s.party.every((m) => m.curHP <= 0)) return;
     audio.sfx("encounter");
-    const wild = await createMon(speciesId, level, "WILD");
+    // living-dex reward: completing the National Dex boosts shiny odds 8×
+    const shinyDen = s.dexCaught.length >= 1025 ? 64 : 512;
+    const wild = await createMon(speciesId, level, "WILD", { shinyDen });
     const session = await BattleSession.create("wild", s.party, [wild]);
     get().markSeen(speciesId);
-    audio.playMusic("battle_wild");
+    audio.playMusic(theme ?? "battle_wild");
     set({ phase: "battle", battleSession: session, battleTrainer: null, menuOpen: false, submenu: null });
   },
 
