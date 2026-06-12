@@ -5,6 +5,11 @@ import { useI18n } from "@/lib/i18n";
 
 const RELEASES: { v: string; date: string; zh: string[]; en: string[] }[] = [
   {
+    v: "v1.0.0", date: "2026-06-12",
+    zh: ["对战塔（7 连胜挑战、对手随你强度成长、设施战零经验）", "BP 点数 + BP 兑换商店（进化石/全复药/树果）", "新特性 +10（耐热/干燥皮肤/拨沙/拨雪/洁净之盐等）", "重大修复：战后脚本竞态（学招对话覆盖导致剧情挂起）", "训练家卡显示 BP 与塔纪录"],
+    en: ["Battle Tower (7-win streaks, opponents scale to you, no facility exp)", "Battle Points + BP exchange shop (stones / Full Restores / berries)", "+10 abilities (Heatproof, Dry Skin, Sand Rush, Purifying Salt…)", "Major fix: post-battle script race (learn dialogs could hang story flows)", "Trainer card shows BP & tower record"],
+  },
+  {
     v: "v0.9.0", date: "2026-06-12",
     zh: ["培育屋与蛋系统（蛋组兼容、IV 遗传、步数孵化）", "地图常驻天气（海路雨/雪原雪，野战自动带天气）", "战败黑屏修复：真正传送回治疗点 + 损失金额提示", "训练家卡新增「当前目标」指引", "真实玩家 UX 实测反馈轮 1 修复 5 项"],
     en: ["Day Care & Eggs (egg groups, IV inheritance, step hatching)", "Ambient map weather (sea rain / snowfield snow, carried into battles)", "Blackout fix: real teleport to heal point + money-loss message", "Trainer card now shows your current objective", "5 fixes from real-player UX testing round 1"],

@@ -41,7 +41,7 @@ export interface AbilityDef {
   /** hugePower/purePower: double physical attack */
   doubleAtk?: boolean;
   /** speed doubles in matching weather */
-  weatherSpeed?: "sun" | "rain";
+  weatherSpeed?: "sun" | "rain" | "sand" | "hail";
   /** thick-fat: halve fire & ice damage */
   thickFat?: boolean;
   /** speed-boost: +1 Spe at end of each turn */
@@ -136,6 +136,17 @@ export const ABILITIES: Record<string, AbilityDef> = {
   "tinted-lens": { slug: "tinted-lens", tintedLens: true, n: { hans: "有色眼镜", hant: "有色眼鏡", en: "Tinted Lens", ja: "いろめがね", ko: "색안경" } },
   scrappy: { slug: "scrappy", scrappy: true, n: { hans: "胆量", hant: "膽量", en: "Scrappy", ja: "きもったま", ko: "배짱" } },
   "solar-power": { slug: "solar-power", solarPower: true, n: { hans: "太阳之力", hant: "太陽之力", en: "Solar Power", ja: "サンパワー", ko: "선파워" } },
+  // --- v1.0 batch (data-only adds on existing hooks)
+  heatproof: { slug: "heatproof", resistType: "fire", n: { hans: "耐热", hant: "耐熱", en: "Heatproof", ja: "たいねつ", ko: "내열" } },
+  "dry-skin": { slug: "dry-skin", absorbType: "water", n: { hans: "干燥皮肤", hant: "乾燥皮膚", en: "Dry Skin", ja: "かんそうはだ", ko: "건조피부" } },
+  "sand-rush": { slug: "sand-rush", weatherSpeed: "sand", n: { hans: "拨沙", hant: "撥沙", en: "Sand Rush", ja: "すなかき", ko: "모래헤치기" } },
+  "slush-rush": { slug: "slush-rush", weatherSpeed: "hail", n: { hans: "拨雪", hant: "撥雪", en: "Slush Rush", ja: "ゆきかき", ko: "눈치우기" } },
+  "sweet-veil": { slug: "sweet-veil", statusImmune: ["slp"], n: { hans: "甜幕", hant: "甜幕", en: "Sweet Veil", ja: "スイートベール", ko: "스위트베일" } },
+  "pastel-veil": { slug: "pastel-veil", statusImmune: ["psn", "tox"], n: { hans: "粉彩护幕", hant: "粉彩護幕", en: "Pastel Veil", ja: "パステルベール", ko: "파스텔베일" } },
+  "purifying-salt": { slug: "purifying-salt", statusImmune: ["par", "brn", "psn", "tox", "slp", "frz"], n: { hans: "洁净之盐", hant: "潔淨之鹽", en: "Purifying Salt", ja: "きよめのしお", ko: "정화의소금" } },
+  "prism-armor": { slug: "prism-armor", reduceSE: true, n: { hans: "棱镜装甲", hant: "稜鏡裝甲", en: "Prism Armor", ja: "プリズムアーマー", ko: "프리즘아머" } },
+  "shadow-shield": { slug: "shadow-shield", multiscale: true, n: { hans: "幻影防守", hant: "幻影防守", en: "Shadow Shield", ja: "ファントムガード", ko: "팬텀가드" } },
+  "effect-spore": { slug: "effect-spore", contactStatus: { status: "psn", chance: 30 }, n: { hans: "孢子", hant: "孢子", en: "Effect Spore", ja: "ほうし", ko: "포자" } },
 };
 
 export function abilityName(slug: string | undefined, locale: "zh-CN" | "zh-TW" | "en" | "ja" | "ko"): string {

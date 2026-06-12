@@ -41,6 +41,8 @@ export interface TrainerDef {
   vanish?: boolean;
   /** one-time item handed over after victory */
   reward?: { item: string; qty: number };
+  /** facility battle: no exp/EVs awarded (Battle Tower) */
+  noExp?: boolean;
 }
 
 export interface NpcDef {
@@ -49,7 +51,7 @@ export interface NpcDef {
   dir: Dir;
   palette: string;
   dialogKeys?: string[];
-  script?: "professor" | "nurse" | "mart" | "mom" | "rivalIdle" | "rod" | "champion" | "legend" | "daycare";
+  script?: "professor" | "nurse" | "mart" | "mom" | "rivalIdle" | "rod" | "champion" | "legend" | "daycare" | "tower" | "bpshop";
   trainer?: TrainerDef;
   /** only visible when this flag is truthy / falsy */
   ifFlag?: string;
@@ -1423,6 +1425,7 @@ export const MAPS: Record<string, MapDef> = {
       { x: 6, y: 5, to: "gym-venom", tx: 6, ty: 9, dir: "up" },
       { x: 18, y: 5, to: "amethyst-center", tx: 6, ty: 4, dir: "up" },
       { x: 5, y: 10, to: "amethyst-mart", tx: 5, ty: 4, dir: "up" },
+      { x: 16, y: 10, to: "battle-tower", tx: 5, ty: 5, dir: "up" },
       { x: 25, y: 12, to: "star-tower", tx: 7, ty: 13, dir: "right" },
     ],
     signs: [{ x: 9, y: 13, textKey: "story.sign_amethyst" }],
@@ -1472,6 +1475,31 @@ export const MAPS: Record<string, MapDef> = {
     warps: [{ x: 5, y: 5, to: "amethyst-port", tx: 5, ty: 11, dir: "down" }],
     signs: [],
     npcs: [{ id: "clerk5", x: 3, y: 2, dir: "down", palette: "clerk", script: "mart" }],
+    items: [],
+  },
+
+  // ========================================================= BATTLE TOWER
+  "battle-tower": {
+    id: "battle-tower",
+    nameKey: "story.sign_tower",
+    music: "league",
+    indoor: true,
+    grid: [
+      "IIIIIIIIIIII",
+      "I_a______a_I",
+      "I__________I",
+      "IF__FFFF__FI",
+      "I__________I",
+      "I__________I",
+      "I_____m____I",
+      "IIIIIIIIIIII",
+    ],
+    warps: [{ x: 5, y: 6, to: "amethyst-port", tx: 16, ty: 11, dir: "down" }],
+    signs: [],
+    npcs: [
+      { id: "tower-recept", x: 2, y: 2, dir: "down", palette: "nurse", script: "tower" },
+      { id: "tower-bp", x: 9, y: 2, dir: "down", palette: "clerk", script: "bpshop" },
+    ],
     items: [],
   },
 

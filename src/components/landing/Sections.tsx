@@ -201,7 +201,7 @@ export function Stats() {
     [937, t("site.stats.moves")],
     [18, t("site.stats.types")],
     [5, t("site.stats.langs")],
-    [44, t("site.stats.maps")],
+    [45, t("site.stats.maps")],
     [18, t("site.stats.tracks")],
   ];
   return (

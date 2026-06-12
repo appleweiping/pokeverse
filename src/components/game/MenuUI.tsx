@@ -361,6 +361,8 @@ export default function MenuUI() {
                 <Info label={t("game.menu.time")} value={fmtTime(save.playSeconds)} />
                 <Info label={t("game.menu.seen")} value={`${save.dexSeen.length} / ${MAX_DEX_ID}`} />
                 <Info label={t("game.menu.caught")} value={`${save.dexCaught.length} / ${MAX_DEX_ID}`} />
+                <Info label="BP" value={`${save.stats?.bp ?? 0}`} />
+                <Info label={t("game.menu.tower_best")} value={`${save.stats?.towerBest ?? 0} / 7`} />
               </div>
               <div className="mt-4">
                 <div className="mb-1 text-xs opacity-70">{t("game.menu.badges")}</div>

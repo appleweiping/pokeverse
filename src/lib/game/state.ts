@@ -85,6 +85,8 @@ interface GameStore {
   credits: boolean;
   /** set after a battle loss; the overworld engine performs the teleport and clears it */
   respawn: { mapId: string; x: number; y: number; moneyLost: number } | null;
+  /** true while endBattle's async tail (replays/learns/evolutions) is still running */
+  battleResolving: boolean;
   /** bumps whenever party/bag mutate so React re-renders */
   tick: number;
 
@@ -141,6 +143,7 @@ export const useGame = create<GameStore>((set, get) => ({
   battleTrainer: null,
   toast: null,
   respawn: null,
+  battleResolving: false,
   credits: false,
   tick: 0,
 
@@ -317,7 +320,7 @@ export const useGame = create<GameStore>((set, get) => ({
       get().markSeen(t.speciesId);
     }
     const info: TrainerInfo = { id: def.id, nameKey: def.nameKey, prize: def.prize, badge: def.badge };
-    const session = await BattleSession.create("trainer", able, team, { trainer: info, weather });
+    const session = await BattleSession.create("trainer", able, team, { trainer: info, weather, noExp: def.noExp });
     audio.playMusic(def.theme ?? (def.badge ? "gym" : "battle_trainer"));
     set({ phase: "battle", battleSession: session, battleTrainer: info, menuOpen: false, submenu: null });
   },
@@ -326,7 +329,9 @@ export const useGame = create<GameStore>((set, get) => ({
     const g = get();
     const s = g.save;
     const session = g.battleSession;
-    set({ phase: "overworld", battleSession: null, battleTrainer: null });
+    // battleResolving holds scripts (waitForOverworld) until the async tail finishes
+    set({ phase: "overworld", battleSession: null, battleTrainer: null, battleResolving: true });
+    try {
     if (!s || !session) return;
 
     if (result === "caught") {
@@ -392,6 +397,9 @@ export const useGame = create<GameStore>((set, get) => ({
       await g.runEvolutionChecks(session.expEarnedBy);
     }
     void g.checkAchv();
+    } finally {
+      set({ battleResolving: false });
+    }
   },
 
   runLearnFlow: async (reqs) => {

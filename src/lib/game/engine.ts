@@ -31,7 +31,9 @@ function waitForOverworld(): Promise<void> {
   return new Promise((resolve) => {
     const check = () => {
       const st = useGame.getState();
-      return st.phase === "overworld" && !st.dialogue && !st.choice && !st.evolution;
+      // battleResolving covers endBattle's async tail (replay save, learn/evolution
+      // flows) — without it a script's dialogue can be clobbered by runLearnFlow's
+      return st.phase === "overworld" && !st.battleResolving && !st.dialogue && !st.choice && !st.evolution;
     };
     if (check()) { resolve(); return; }
     const unsub = useGame.subscribe(() => {
@@ -727,6 +729,14 @@ export class Overworld {
         await this.scriptDaycare();
         break;
       }
+      case "tower": {
+        await this.scriptTower();
+        break;
+      }
+      case "bpshop": {
+        await this.scriptBpShop();
+        break;
+      }
       default:
         if (d.dialogKeys?.length) {
           await g.showDialogue(d.dialogKeys.map((k) => tr(k)));
@@ -866,6 +876,108 @@ export class Overworld {
           g.persist();
         }
       }
+    }
+  }
+
+  /** Battle Tower: 7-round streak, scaled opponents, BP rewards. */
+  private async scriptTower() {
+    const g = useGame.getState();
+    const save = g.save!;
+    save.stats ??= {};
+    const able = save.party.filter((m) => !m.egg);
+    if (able.length === 0) {
+      await g.showDialogue([tr("story.tower_need_party")]);
+      return;
+    }
+    await g.showDialogue([tr("story.tower_welcome", { bp: save.stats.bp ?? 0, best: save.stats.towerBest ?? 0 })]);
+    const go = await g.askChoice(tr("story.tower_prompt"), [
+      { label: tr("game.field.yes"), value: "y" },
+      { label: tr("game.field.no"), value: "n" },
+    ]);
+    if (go !== "y") return;
+
+    // strong, varied opponent pool; levels track the player's strongest mon
+    const POOL = [3, 6, 9, 59, 65, 68, 94, 103, 112, 121, 130, 131, 134, 135, 136, 142, 143, 149];
+    const baseLv = Math.max(30, Math.min(70, Math.max(...able.map((m) => m.level))));
+    let wins = 0;
+
+    for (let round = 1; round <= 7; round++) {
+      await g.healParty();
+      await g.showDialogue([tr("story.tower_round", { n: round })]);
+      const team: { speciesId: number; level: number }[] = [];
+      const used = new Set<number>();
+      while (team.length < 3) {
+        const sp = POOL[Math.floor(Math.random() * POOL.length)];
+        if (used.has(sp)) continue;
+        used.add(sp);
+        team.push({ speciesId: sp, level: baseLv + Math.floor(round / 2) });
+      }
+      const def: TrainerDef = {
+        id: "tower", nameKey: "story.tn.tower", preKey: "story.tower_round",
+        loseKey: "story.tower_opp_lose", team, prize: 0, theme: "league", noExp: true,
+      };
+      const winsBefore = save.stats.battlesWon ?? 0;
+      const moneyBefore = save.money;
+      await g.startTrainerBattle(def);
+      await waitForOverworld();
+      const won = (useGame.getState().save?.stats?.battlesWon ?? 0) > winsBefore;
+      if (!won) {
+        // a tower loss ends the streak — no blackout teleport, no money penalty
+        useGame.setState({ respawn: null });
+        save.money = moneyBefore;
+        await g.healParty();
+        await g.showDialogue([tr("story.tower_lost", { n: wins })]);
+        break;
+      }
+      wins++;
+      save.stats.bp = (save.stats.bp ?? 0) + 2;
+      if (wins === 7) {
+        save.stats.bp += 10;
+        await g.showDialogue([tr("story.tower_clear")]);
+      }
+    }
+    save.stats.towerBest = Math.max(save.stats.towerBest ?? 0, wins);
+    await g.healParty();
+    await g.showDialogue([tr("story.tower_result", { n: wins, bp: save.stats.bp ?? 0 })]);
+    g.persist();
+    void g.checkAchv();
+  }
+
+  /** BP shop next to the Battle Tower desk. */
+  private async scriptBpShop() {
+    const g = useGame.getState();
+    const save = g.save!;
+    save.stats ??= {};
+    const STOCK: { item: string; qty: number; bp: number }[] = [
+      { item: "ultra-ball", qty: 5, bp: 1 },
+      { item: "full-restore", qty: 1, bp: 2 },
+      { item: "lum-berry", qty: 1, bp: 2 },
+      { item: "sitrus-berry", qty: 1, bp: 2 },
+      { item: "fire-stone", qty: 1, bp: 6 },
+      { item: "water-stone", qty: 1, bp: 6 },
+      { item: "thunder-stone", qty: 1, bp: 6 },
+      { item: "leaf-stone", qty: 1, bp: 6 },
+      { item: "moon-stone", qty: 1, bp: 6 },
+    ];
+    for (;;) {
+      const bp = save.stats.bp ?? 0;
+      const opts = STOCK.map((s, i) => ({
+        label: `${tr(`items.${s.item}.n`)}${s.qty > 1 ? `×${s.qty}` : ""} — ${s.bp}BP`,
+        value: String(i),
+      }));
+      opts.push({ label: tr("story.daycare_opt_bye"), value: "bye" });
+      const pick = await g.askChoice(tr("story.bpshop_prompt", { bp }), opts);
+      if (pick === null || pick === "bye") break;
+      const row = STOCK[Number(pick)];
+      if ((save.stats.bp ?? 0) < row.bp) {
+        await g.showDialogue([tr("story.bpshop_poor")]);
+        continue;
+      }
+      save.stats.bp = (save.stats.bp ?? 0) - row.bp;
+      g.giveItem(row.item, row.qty);
+      audio.sfx("catch");
+      await g.showDialogue([tr("game.field.bag_item", { item: tr(`items.${row.item}.n`), n: row.qty })]);
+      g.persist();
     }
   }
 

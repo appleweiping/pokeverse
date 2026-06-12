@@ -150,6 +150,8 @@ export class BattleSession {
   expEarnedBy = new Set<string>();
   weather: Weather = "none";
   weatherTurns = 0;
+  /** facility battles (Battle Tower) award no exp/EVs */
+  noExp = false;
   /** every event ever emitted — used for battle replays */
   allEvents: BattleEvent[] = [];
   private moveMap!: Map<number, MoveData>;
@@ -171,10 +173,11 @@ export class BattleSession {
     kind: "wild" | "trainer",
     party: Mon[],
     enemyParty: Mon[],
-    opts: { trainer?: TrainerInfo; rng?: () => number; weather?: Weather } = {}
+    opts: { trainer?: TrainerInfo; rng?: () => number; weather?: Weather; noExp?: boolean } = {}
   ): Promise<BattleSession> {
     const s = new BattleSession(kind, party, enemyParty, opts.rng ?? Math.random, opts.trainer);
     s.moveMap = await getMoveMap();
+    s.noExp = !!opts.noExp;
     const firstAble = party.findIndex((m) => m.curHP > 0);
     s.player = await makeBattler(party[Math.max(0, firstAble)]);
     s.enemy = await makeBattler(enemyParty[0]);
@@ -1140,10 +1143,10 @@ export class BattleSession {
     });
 
     if (side === "enemy") {
-      // exp + EVs for the active player mon
+      // exp + EVs for the active player mon (facility battles award none)
       const gain = expGain(b.species.be, b.mon.level, this.kind === "trainer");
       const p = this.player;
-      if (p.mon.curHP > 0 && p.mon.level < 100) {
+      if (!this.noExp && p.mon.curHP > 0 && p.mon.level < 100) {
         // effort values from the defeated species
         if (b.species.ey?.length) {
           if (!p.mon.evs) p.mon.evs = [0, 0, 0, 0, 0, 0];
