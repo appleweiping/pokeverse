@@ -320,7 +320,8 @@ export const useGame = create<GameStore>((set, get) => ({
       get().markSeen(t.speciesId);
     }
     const info: TrainerInfo = { id: def.id, nameKey: def.nameKey, prize: def.prize, badge: def.badge };
-    const session = await BattleSession.create("trainer", able, team, { trainer: info, weather, noExp: def.noExp });
+    if (def.double && able.filter((m) => m.curHP > 0).length < 2) return;
+    const session = await BattleSession.create("trainer", able, team, { trainer: info, weather, noExp: def.noExp, double: def.double });
     audio.playMusic(def.theme ?? (def.badge ? "gym" : "battle_trainer"));
     set({ phase: "battle", battleSession: session, battleTrainer: info, menuOpen: false, submenu: null });
   },

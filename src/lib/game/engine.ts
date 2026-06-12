@@ -737,6 +737,10 @@ export class Overworld {
         await this.scriptBpShop();
         break;
       }
+      case "dojo": {
+        await this.scriptDojo();
+        break;
+      }
       default:
         if (d.dialogKeys?.length) {
           await g.showDialogue(d.dialogKeys.map((k) => tr(k)));
@@ -939,6 +943,67 @@ export class Overworld {
     save.stats.towerBest = Math.max(save.stats.towerBest ?? 0, wins);
     await g.healParty();
     await g.showDialogue([tr("story.tower_result", { n: wins, bp: save.stats.bp ?? 0 })]);
+    g.persist();
+    void g.checkAchv();
+  }
+
+  /** Battle Dojo: 3 consecutive 2v2 double battles. Facility rules, BP rewards. */
+  private async scriptDojo() {
+    const g = useGame.getState();
+    const save = g.save!;
+    save.stats ??= {};
+    const able = save.party.filter((m) => !m.egg && m.curHP > 0);
+    if (able.length < 2) {
+      await g.showDialogue([tr("story.dojo_need_two")]);
+      return;
+    }
+    await g.showDialogue([tr("story.dojo_welcome", { bp: save.stats.bp ?? 0 })]);
+    const go = await g.askChoice(tr("story.dojo_prompt"), [
+      { label: tr("game.field.yes"), value: "y" },
+      { label: tr("game.field.no"), value: "n" },
+    ]);
+    if (go !== "y") return;
+
+    const POOL = [26, 28, 31, 34, 36, 45, 62, 76, 78, 91, 110, 124, 125, 126, 189, 217, 229, 232];
+    const baseLv = Math.max(28, Math.min(68, Math.max(...able.map((m) => m.level)) - 2));
+    let wins = 0;
+    for (let round = 1; round <= 3; round++) {
+      await g.healParty();
+      await g.showDialogue([tr("story.dojo_round", { n: round })]);
+      const team: { speciesId: number; level: number }[] = [];
+      const used = new Set<number>();
+      while (team.length < 4) {
+        const sp = POOL[Math.floor(Math.random() * POOL.length)];
+        if (used.has(sp)) continue;
+        used.add(sp);
+        team.push({ speciesId: sp, level: baseLv + round });
+      }
+      const def: TrainerDef = {
+        id: "dojo", nameKey: "story.tn.dojo", preKey: "story.dojo_round",
+        loseKey: "story.tower_opp_lose", team, prize: 0, theme: "league", noExp: true, double: true,
+      };
+      const winsBefore = save.stats.battlesWon ?? 0;
+      const moneyBefore = save.money;
+      await g.startTrainerBattle(def);
+      await waitForOverworld();
+      const won = (useGame.getState().save?.stats?.battlesWon ?? 0) > winsBefore;
+      if (!won) {
+        useGame.setState({ respawn: null });
+        save.money = moneyBefore;
+        await g.healParty();
+        await g.showDialogue([tr("story.dojo_lost", { n: wins })]);
+        break;
+      }
+      wins++;
+      save.stats.bp = (save.stats.bp ?? 0) + 3;
+      if (wins === 3) {
+        save.stats.bp += 6;
+        await g.showDialogue([tr("story.dojo_clear")]);
+      }
+    }
+    save.stats.dojoBest = Math.max(save.stats.dojoBest ?? 0, wins);
+    await g.healParty();
+    await g.showDialogue([tr("story.dojo_result", { n: wins, bp: save.stats.bp ?? 0 })]);
     g.persist();
     void g.checkAchv();
   }

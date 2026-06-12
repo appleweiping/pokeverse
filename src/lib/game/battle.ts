@@ -12,12 +12,12 @@ import { ABILITIES, type AbilityDef } from "../data/abilities";
 
 export type BattleEvent =
   | { t: "msg"; key: string; params?: Record<string, string | number> }
-  | { t: "anim"; kind: "attack" | "hit" | "hit_super" | "hit_weak" | "faint" | "ball_throw" | "ball_shake" | "ball_open" | "catch" | "heal" | "stat_up" | "stat_down"; side: Side; mt?: TypeName }
-  | { t: "hp"; side: Side; hp: number; maxHp: number }
-  | { t: "status"; side: Side; status: MajorStatus | null }
+  | { t: "anim"; kind: "attack" | "hit" | "hit_super" | "hit_weak" | "faint" | "ball_throw" | "ball_shake" | "ball_open" | "catch" | "heal" | "stat_up" | "stat_down"; side: Side; mt?: TypeName; slot?: number }
+  | { t: "hp"; side: Side; hp: number; maxHp: number; slot?: number }
+  | { t: "status"; side: Side; status: MajorStatus | null; slot?: number }
   | { t: "exp"; exp: number; toNext: number; pct: number }
   | { t: "level"; level: number }
-  | { t: "switch"; side: Side; view: BattlerPublicView }
+  | { t: "switch"; side: Side; view: BattlerPublicView; slot?: number }
   | { t: "weather"; weather: Weather }
   | { t: "ability"; side: Side; ability: string }
   | { t: "end"; result: BattleResult };
@@ -135,8 +135,23 @@ async function makeBattler(mon: Mon): Promise<Battler> {
 
 export class BattleSession {
   kind: "wild" | "trainer";
-  player!: Battler;
-  enemy!: Battler;
+  /** active battlers per side; slot 0 always exists, slot 1 only in doubles */
+  pSlots: Battler[] = [];
+  eSlots: Battler[] = [];
+  /** 2v2 double battle */
+  double = false;
+  get player(): Battler { return this.pSlots[0]; }
+  set player(b: Battler) { this.pSlots[0] = b; }
+  get enemy(): Battler { return this.eSlots[0]; }
+  set enemy(b: Battler) { this.eSlots[0] = b; }
+  /** which side a battler fights for */
+  sideOf(b: Battler): Side { return this.pSlots.includes(b) ? "player" : "enemy"; }
+  isPlayerSide(b: Battler): boolean { return this.pSlots.includes(b); }
+  slotOf(b: Battler): number { const i = this.pSlots.indexOf(b); return i >= 0 ? i : this.eSlots.indexOf(b); }
+  /** living active battlers of one side */
+  actives(side: Side): Battler[] { return (side === "player" ? this.pSlots : this.eSlots).filter((b) => b && b.mon.curHP > 0); }
+  /** every filled slot on the field, both sides */
+  allActiveSlots(): Battler[] { return [...this.pSlots, ...this.eSlots].filter(Boolean); }
   party: Mon[];
   enemyParty: Mon[];
   enemyIdx = 0;
@@ -152,6 +167,8 @@ export class BattleSession {
   weatherTurns = 0;
   /** facility battles (Battle Tower) award no exp/EVs */
   noExp = false;
+  /** transient damage multiplier for spread moves in doubles (0.75 when multi-target) */
+  private spreadMod = 1;
   /** every event ever emitted — used for battle replays */
   allEvents: BattleEvent[] = [];
   private moveMap!: Map<number, MoveData>;
@@ -173,7 +190,7 @@ export class BattleSession {
     kind: "wild" | "trainer",
     party: Mon[],
     enemyParty: Mon[],
-    opts: { trainer?: TrainerInfo; rng?: () => number; weather?: Weather; noExp?: boolean } = {}
+    opts: { trainer?: TrainerInfo; rng?: () => number; weather?: Weather; noExp?: boolean; double?: boolean } = {}
   ): Promise<BattleSession> {
     const s = new BattleSession(kind, party, enemyParty, opts.rng ?? Math.random, opts.trainer);
     s.moveMap = await getMoveMap();
@@ -181,6 +198,15 @@ export class BattleSession {
     const firstAble = party.findIndex((m) => m.curHP > 0);
     s.player = await makeBattler(party[Math.max(0, firstAble)]);
     s.enemy = await makeBattler(enemyParty[0]);
+    if (opts.double) {
+      const second = party.findIndex((m, i) => i !== Math.max(0, firstAble) && m.curHP > 0);
+      if (second >= 0 && enemyParty.length >= 2) {
+        s.double = true;
+        s.pSlots[1] = await makeBattler(party[second]);
+        s.eSlots[1] = await makeBattler(enemyParty[1]);
+        s.enemyIdx = 1; // highest enemy bench index fielded so far
+      }
+    }
     if (opts.weather && opts.weather !== "none") {
       // ambient map weather: weatherTurns 0 = never counts down
       s.weather = opts.weather;
@@ -198,7 +224,7 @@ export class BattleSession {
       ev.push({ t: "msg", key: `game.battle.weather_${this.weather}_start` });
     }
     // faster mon's ability would announce first, but order is cosmetic here
-    for (const b of [this.enemy, this.player] as Battler[]) {
+    for (const b of [...this.eSlots, ...this.pSlots].filter(Boolean)) {
       this.onSwitchIn(b, ev);
     }
     return ev;
@@ -207,7 +233,7 @@ export class BattleSession {
   private onSwitchIn(b: Battler, ev: BattleEvent[]) {
     const ab = b.ability;
     if (!ab) return;
-    const side: Side = b === this.player ? "player" : "enemy";
+    const side: Side = this.sideOf(b);
     if (ab.weather) {
       const w = ab.weather as Weather;
       if (this.weather !== w) {
@@ -219,23 +245,30 @@ export class BattleSession {
       }
     }
     if (ab.intimidate) {
-      const foe = b === this.player ? this.enemy : this.player;
-      if (foe.mon.curHP > 0 && (foe.ability?.slug !== "clear-body")) {
-        ev.push({ t: "ability", side, ability: ab.slug });
-        this.applyStatChange(foe, "attack", -1, ev);
+      // in doubles, Intimidate hits every opposing active mon
+      const foes = this.actives(side === "player" ? "enemy" : "player");
+      for (const foe of foes) {
+        if (foe.mon.curHP > 0 && (foe.ability?.slug !== "clear-body")) {
+          ev.push({ t: "ability", side, ability: ab.slug });
+          this.applyStatChange(foe, "attack", -1, ev);
+        }
       }
     }
   }
 
   playerView() { return viewOf(this.player); }
   enemyView() { return viewOf(this.enemy); }
+  /** all active views per side (doubles UI) */
+  playerViews() { return this.pSlots.filter(Boolean).map(viewOf); }
+  enemyViews() { return this.eSlots.filter(Boolean).map(viewOf); }
   moveData(id: number) { return this.moveMap.get(id); }
 
-  /** usable party indexes for switching */
+  /** usable party indexes for switching (excludes every fielded mon) */
   switchable(): number[] {
+    const fielded = new Set(this.pSlots.filter(Boolean).map((s) => s.mon.uid));
     return this.party
       .map((m, i) => ({ m, i }))
-      .filter(({ m }) => m.curHP > 0 && m.uid !== this.player.mon.uid)
+      .filter(({ m }) => m.curHP > 0 && !fielded.has(m.uid))
       .map(({ i }) => i);
   }
 
@@ -449,18 +482,18 @@ export class BattleSession {
   }
 
   private pvpEndOfTurn(ev: BattleEvent[]) {
-    for (const b of [this.player, this.enemy] as Battler[]) {
+    for (const b of this.allActiveSlots()) {
       if (b.mon.curHP <= 0) continue;
-      const side: Side = b === this.player ? "player" : "enemy";
+      const side: Side = this.sideOf(b);
       const who = this.nameParam(b);
       if (b.mon.status === "brn") {
         b.mon.curHP = Math.max(0, b.mon.curHP - Math.max(1, Math.floor(b.stats[0] / 16)));
         ev.push({ t: "msg", key: "game.battle.brn_dmg", params: who });
-        ev.push({ t: "hp", side, hp: b.mon.curHP, maxHp: b.stats[0] });
+        ev.push(this.hpEv(b));
       } else if (b.mon.status === "psn" || b.mon.status === "tox") {
         b.mon.curHP = Math.max(0, b.mon.curHP - Math.max(1, Math.floor(b.stats[0] / 8)));
         ev.push({ t: "msg", key: "game.battle.psn_dmg", params: who });
-        ev.push({ t: "hp", side, hp: b.mon.curHP, maxHp: b.stats[0] });
+        ev.push(this.hpEv(b));
       }
     }
     this.resolvePvpFaint(ev);
@@ -468,21 +501,21 @@ export class BattleSession {
 
   // ----------------------------------------------------------------- moves
   private resolveMoveChoice(b: Battler, idx: number): { move: MoveData; idx: number } {
-    const hasPP = b.mon.moves.some((m, i) => (b === this.player ? m.pp : b.pp[i]) > 0);
+    const onP = this.isPlayerSide(b);
+    const hasPP = b.mon.moves.some((m, i) => (onP ? m.pp : b.pp[i]) > 0);
     if (!hasPP) {
       return { move: this.moveMap.get(STRUGGLE_ID)!, idx: -1 };
     }
     const chosen = b.mon.moves[idx];
-    const pp = b === this.player ? chosen?.pp ?? 0 : b.pp[idx] ?? 0;
+    const pp = onP ? chosen?.pp ?? 0 : b.pp[idx] ?? 0;
     if (!chosen || pp <= 0) {
-      const i = b.mon.moves.findIndex((m, j) => (b === this.player ? m.pp : b.pp[j]) > 0);
+      const i = b.mon.moves.findIndex((m, j) => (onP ? m.pp : b.pp[j]) > 0);
       return { move: this.moveMap.get(b.mon.moves[i].id)!, idx: i };
     }
     return { move: this.moveMap.get(chosen.id)!, idx };
   }
 
-  private pickEnemyMove(): { move: MoveData; idx: number } {
-    const b = this.enemy;
+  private pickEnemyMove(b: Battler = this.enemy, vs: Battler = this.player): { move: MoveData; idx: number } {
     const usable = b.mon.moves
       .map((m, i) => ({ m, i }))
       .filter(({ i }) => b.pp[i] > 0)
@@ -495,7 +528,7 @@ export class BattleSession {
       let bestScore = -1;
       for (const u of usable) {
         if (u.move.c === 2) continue;
-        const eff = effectiveness(u.move.t, this.player.species.t);
+        const eff = effectiveness(u.move.t, vs.species.t);
         const stab = b.species.t.includes(u.move.t) ? 1.5 : 1;
         const score = u.move.p * eff * stab * (u.move.a ? u.move.a / 100 : 1);
         if (score > bestScore) { bestScore = score; best = u; }
@@ -510,6 +543,11 @@ export class BattleSession {
     return { name: b.mon.nickname ?? `%SPECIES_${b.mon.speciesId}%` };
   }
 
+  /** hp event for a battler, slot-tagged for doubles */
+  private hpEv(b: Battler): BattleEvent {
+    return { t: "hp", side: this.sideOf(b), slot: this.slotOf(b), hp: b.mon.curHP, maxHp: b.stats[0] };
+  }
+
   /** Effective speed incl. stages, paralysis and abilities. */
   private effSpeed(b: Battler): number {
     let spe = b.stats[5] * stageMult(b.stages.spe);
@@ -519,8 +557,9 @@ export class BattleSession {
     return spe;
   }
 
-  private async executeMove(att: Battler, def: Battler, move: MoveData, moveIdx: number, ev: BattleEvent[]) {
-    const isPlayer = att === this.player;
+  private async executeMove(att: Battler, def: Battler, move: MoveData, moveIdx: number, ev: BattleEvent[], spreadMod = 1) {
+    const isPlayer = this.isPlayerSide(att);
+    this.spreadMod = spreadMod;
     const who = this.nameParam(att);
 
     // --- releasing a charged two-turn move overrides the chosen action
@@ -594,7 +633,7 @@ export class BattleSession {
       if (isPlayer) att.mon.moves[moveIdx].pp = Math.max(0, att.mon.moves[moveIdx].pp - 1);
       else att.pp[moveIdx] = Math.max(0, att.pp[moveIdx] - 1);
     }
-    ev.push({ t: "anim", kind: "attack", side: isPlayer ? "player" : "enemy" });
+    ev.push({ t: "anim", kind: "attack", side: isPlayer ? "player" : "enemy", slot: this.slotOf(att) });
 
     // --- two-turn charge moves (Fly / Dig / Solar Beam)
     const CHARGE_MSG: Record<number, string> = { 19: "charge_fly", 91: "charge_dig", 76: "charge_solar" };
@@ -622,7 +661,7 @@ export class BattleSession {
       }
     }
 
-    const defSide: Side = def === this.player ? "player" : "enemy";
+    const defSide: Side = this.sideOf(def);
 
     if (move.c === 2) {
       // ------- Protect / Detect
@@ -648,7 +687,7 @@ export class BattleSession {
         att.mon.curHP -= cost;
         att.sub = cost;
         ev.push({ t: "msg", key: "game.battle.sub_make", params: who });
-        ev.push({ t: "hp", side: isPlayer ? "player" : "enemy", hp: att.mon.curHP, maxHp: att.stats[0] });
+        ev.push(this.hpEv(att));
         return;
       }
       // ------- Focus Energy
@@ -669,7 +708,7 @@ export class BattleSession {
         att.mon.curHP = att.stats[0];
         ev.push({ t: "msg", key: "game.battle.rest", params: who });
         ev.push({ t: "status", side: isPlayer ? "player" : "enemy", status: "slp" });
-        ev.push({ t: "hp", side: isPlayer ? "player" : "enemy", hp: att.mon.curHP, maxHp: att.stats[0] });
+        ev.push(this.hpEv(att));
         return;
       }
       // ------- weather-setting moves
@@ -722,7 +761,7 @@ export class BattleSession {
         if (def.mon.curHP < def.stats[0]) {
           def.mon.curHP = Math.min(def.stats[0], def.mon.curHP + heal);
           ev.push({ t: "msg", key: "game.battle.healed", params: this.nameParam(def) });
-          ev.push({ t: "hp", side: defSide, hp: def.mon.curHP, maxHp: def.stats[0] });
+          ev.push(this.hpEv(def));
         } else {
           ev.push({ t: "msg", key: "game.battle.immune" });
         }
@@ -799,13 +838,13 @@ export class BattleSession {
         att.mon.curHP = Math.max(0, att.mon.curHP + amount);
         ev.push({ t: "msg", key: "game.battle.recoil", params: who });
       }
-      ev.push({ t: "hp", side: att === this.player ? "player" : "enemy", hp: att.mon.curHP, maxHp: att.stats[0] });
+      ev.push(this.hpEv(att));
     }
     if (move.id === STRUGGLE_ID) {
       const recoil = Math.max(1, Math.floor(att.stats[0] / 4));
       att.mon.curHP = Math.max(0, att.mon.curHP - recoil);
       ev.push({ t: "msg", key: "game.battle.recoil", params: who });
-      ev.push({ t: "hp", side: att === this.player ? "player" : "enemy", hp: att.mon.curHP, maxHp: att.stats[0] });
+      ev.push(this.hpEv(att));
     }
 
     if (def.mon.curHP > 0) {
@@ -825,7 +864,7 @@ export class BattleSession {
           att.mon.curHP = Math.max(0, att.mon.curHP - chip);
           ev.push({ t: "ability", side: defSide, ability: dab.slug });
           ev.push({ t: "msg", key: "game.battle.contact_hurt", params: who });
-          ev.push({ t: "hp", side: isPlayer ? "player" : "enemy", hp: att.mon.curHP, maxHp: att.stats[0] });
+          ev.push(this.hpEv(att));
         }
       }
     }
@@ -891,12 +930,14 @@ export class BattleSession {
     if (crit) dmg *= aAb?.sniper ? 2.25 : 1.5;
     // burn halves physical unless Guts
     if (phys && att.mon.status === "brn" && !aAb?.guts) dmg *= 0.5;
+    // doubles: spread moves hit each target at 75%
+    dmg *= this.spreadMod;
     dmg *= 0.85 + this.rng() * 0.15;
     return { dmg: Math.max(1, Math.floor(dmg)), crit };
   }
 
   private dealDamage(def: Battler, dmg: number, ev: BattleEvent[]) {
-    const side: Side = def === this.player ? "player" : "enemy";
+    const side: Side = this.sideOf(def);
     // Sturdy: endure a OHKO from full HP with 1 HP
     let sturdy = false;
     if (def.ability?.sturdy && def.mon.curHP === def.stats[0] && dmg >= def.mon.curHP) {
@@ -904,7 +945,7 @@ export class BattleSession {
       sturdy = true;
     }
     def.mon.curHP = Math.max(0, def.mon.curHP - dmg);
-    ev.push({ t: "hp", side, hp: def.mon.curHP, maxHp: def.stats[0] });
+    ev.push(this.hpEv(def));
     if (sturdy) {
       ev.push({ t: "ability", side, ability: "sturdy" });
       ev.push({ t: "msg", key: "game.battle.sturdy", params: this.nameParam(def) });
@@ -923,7 +964,7 @@ export class BattleSession {
       const amount = Math.max(1, Math.floor((att.stats[0] * m.heal) / 100));
       att.mon.curHP = Math.min(att.stats[0], att.mon.curHP + amount);
       ev.push({ t: "msg", key: "game.battle.healed", params: who(att) });
-      ev.push({ t: "hp", side: att === this.player ? "player" : "enemy", hp: att.mon.curHP, maxHp: att.stats[0] });
+      ev.push(this.hpEv(att));
     }
 
     // stat changes
@@ -961,7 +1002,7 @@ export class BattleSession {
     if (!k) return;
     // Simple doubles the target's own stage changes
     if (target.ability?.simple) change *= 2;
-    const side: Side = target === this.player ? "player" : "enemy";
+    const side: Side = this.sideOf(target);
     const cur = target.stages[k];
     const params = { ...this.nameParam(target), stat: `%STAT_${k}%` };
     if (change > 0 && cur >= 6) { ev.push({ t: "msg", key: "game.battle.stat_max", params }); return; }
@@ -976,7 +1017,7 @@ export class BattleSession {
   }
 
   private applyAilment(def: Battler, ail: string, ev: BattleEvent[]) {
-    const side: Side = def === this.player ? "player" : "enemy";
+    const side: Side = this.sideOf(def);
     const who = this.nameParam(def);
     if (ail === "confusion") {
       if (def.confuse > 0) return;
@@ -1018,13 +1059,13 @@ export class BattleSession {
     const def = ITEMS[b.mon.item];
     const berry = def?.berry;
     if (!berry) return;
-    const side: Side = b === this.player ? "player" : "enemy";
+    const side: Side = this.sideOf(b);
     let used = false;
     if (berry.healBelow && b.mon.curHP <= b.stats[0] * berry.healBelow && b.mon.curHP < b.stats[0]) {
       const amount = berry.healFraction ? Math.floor(b.stats[0] * berry.healFraction) : berry.healAmount ?? 0;
       b.mon.curHP = Math.min(b.stats[0], b.mon.curHP + amount);
       ev.push({ t: "msg", key: "game.battle.berry_heal", params: { ...this.nameParam(b), item: `%ITEM_${b.mon.item}%` } });
-      ev.push({ t: "hp", side, hp: b.mon.curHP, maxHp: b.stats[0] });
+      ev.push(this.hpEv(b));
       used = true;
     } else if (berry.cureStatus && b.mon.status) {
       const cures = berry.cureStatus === "all" || berry.cureStatus.includes(b.mon.status);
@@ -1054,46 +1095,46 @@ export class BattleSession {
     if (this.over) return;
     // ---- weather chip damage
     if (this.weather === "sand" || this.weather === "hail") {
-      for (const b of [this.player, this.enemy] as Battler[]) {
+      for (const b of this.allActiveSlots()) {
         if (b.mon.curHP <= 0 || this.weatherImmune(b, this.weather) || b.ability?.magicGuard) continue;
-        const side: Side = b === this.player ? "player" : "enemy";
+        const side: Side = this.sideOf(b);
         b.mon.curHP = Math.max(0, b.mon.curHP - Math.max(1, Math.floor(b.stats[0] / 16)));
         ev.push({ t: "msg", key: `game.battle.weather_${this.weather}_dmg`, params: this.nameParam(b) });
-        ev.push({ t: "hp", side, hp: b.mon.curHP, maxHp: b.stats[0] });
+        ev.push(this.hpEv(b));
       }
     }
     // ---- status chip damage (Magic Guard is immune to indirect damage)
-    for (const b of [this.player, this.enemy] as Battler[]) {
+    for (const b of this.allActiveSlots()) {
       if (b.mon.curHP <= 0 || b.ability?.magicGuard) continue;
-      const side: Side = b === this.player ? "player" : "enemy";
+      const side: Side = this.sideOf(b);
       const who = this.nameParam(b);
       if (b.mon.status === "brn") {
         b.mon.curHP = Math.max(0, b.mon.curHP - Math.max(1, Math.floor(b.stats[0] / 16)));
         ev.push({ t: "msg", key: "game.battle.brn_dmg", params: who });
-        ev.push({ t: "hp", side, hp: b.mon.curHP, maxHp: b.stats[0] });
+        ev.push(this.hpEv(b));
       } else if (b.mon.status === "psn" || b.mon.status === "tox") {
         b.mon.curHP = Math.max(0, b.mon.curHP - Math.max(1, Math.floor(b.stats[0] / 8)));
         ev.push({ t: "msg", key: "game.battle.psn_dmg", params: who });
-        ev.push({ t: "hp", side, hp: b.mon.curHP, maxHp: b.stats[0] });
+        ev.push(this.hpEv(b));
       }
     }
     // ---- bind/wrap chip + countdown
-    for (const b of [this.player, this.enemy] as Battler[]) {
+    for (const b of this.allActiveSlots()) {
       if (b.trapTurns <= 0 || b.mon.curHP <= 0) continue;
-      const side: Side = b === this.player ? "player" : "enemy";
+      const side: Side = this.sideOf(b);
       const who = this.nameParam(b);
       b.trapTurns--;
       if (!b.ability?.magicGuard) {
         b.mon.curHP = Math.max(0, b.mon.curHP - Math.max(1, Math.floor(b.stats[0] / 8)));
         ev.push({ t: "msg", key: "game.battle.trap_dmg", params: who });
-        ev.push({ t: "hp", side, hp: b.mon.curHP, maxHp: b.stats[0] });
+        ev.push(this.hpEv(b));
       }
       if (b.trapTurns === 0) ev.push({ t: "msg", key: "game.battle.trap_end", params: who });
     }
     // ---- end-of-turn abilities
-    for (const b of [this.player, this.enemy] as Battler[]) {
+    for (const b of this.allActiveSlots()) {
       if (b.mon.curHP <= 0) continue;
-      const side: Side = b === this.player ? "player" : "enemy";
+      const side: Side = this.sideOf(b);
       if (b.ability?.speedBoost && b.stages.spe < 6) {
         ev.push({ t: "ability", side, ability: b.ability.slug });
         this.applyStatChange(b, "speed", 1, ev);
@@ -1106,14 +1147,13 @@ export class BattleSession {
       }
       if (b.ability?.solarPower && this.weather === "sun" && !b.ability.magicGuard) {
         b.mon.curHP = Math.max(0, b.mon.curHP - Math.max(1, Math.floor(b.stats[0] / 8)));
-        ev.push({ t: "hp", side, hp: b.mon.curHP, maxHp: b.stats[0] });
+        ev.push(this.hpEv(b));
       }
     }
     // ---- low-HP berry triggers
-    for (const b of [this.player, this.enemy] as Battler[]) this.checkBerry(b, ev);
+    for (const b of this.allActiveSlots()) this.checkBerry(b, ev);
     // ---- Protect expires at end of turn
-    this.player.protectedT = false;
-    this.enemy.protectedT = false;
+    for (const b of this.allActiveSlots()) b.protectedT = false;
     // ---- weather countdown
     if (this.weather !== "none" && this.weatherTurns > 0) {
       this.weatherTurns--;
@@ -1128,19 +1168,27 @@ export class BattleSession {
   }
 
   private async resolveResidualFaints(ev: BattleEvent[]) {
-    if (this.enemy.mon.curHP <= 0 && !this.over) await this.handleFaint(this.enemy, ev);
-    if (this.player.mon.curHP <= 0 && !this.over) await this.handleFaint(this.player, ev);
+    for (const b of [...this.eSlots, ...this.pSlots].filter(Boolean)) {
+      if (b.mon.curHP <= 0 && !this.over) await this.handleFaint(b, ev);
+    }
   }
 
   // ------------------------------------------------------------------ faints
   private async handleFaint(b: Battler, ev: BattleEvent[]) {
-    const side: Side = b === this.player ? "player" : "enemy";
-    ev.push({ t: "anim", kind: "faint", side });
+    const side: Side = this.sideOf(b);
+    if (b.faintAnnounced) return;
+    b.faintAnnounced = true;
+    ev.push({ t: "anim", kind: "faint", side, slot: this.slotOf(b) });
     ev.push({
       t: "msg",
       key: side === "enemy" ? "game.battle.enemy_fainted" : "game.battle.fainted",
       params: this.nameParam(b),
     });
+
+    if (this.double) {
+      await this.handleFaintDouble(b, side, ev);
+      return;
+    }
 
     if (side === "enemy") {
       // exp + EVs for the active player mon (facility battles award none)
@@ -1192,6 +1240,158 @@ export class BattleSession {
       this.finish(ev, "lose");
     }
     // otherwise UI must call replaceFainted()
+  }
+
+  // ------------------------------------------------------------- doubles (2v2)
+  /** doubles faint resolution: refill enemy slots from the bench, end on team wipe */
+  private async handleFaintDouble(b: Battler, side: Side, ev: BattleEvent[]) {
+    if (side === "enemy") {
+      // exp to the slot-0 player mon (kept simple; facility doubles use noExp anyway)
+      const gain = expGain(b.species.be, b.mon.level, this.kind === "trainer");
+      const p = this.actives("player")[0];
+      if (!this.noExp && p && p.mon.level < 100) {
+        ev.push({ t: "msg", key: "game.battle.gained_exp", params: { ...this.nameParam(p), exp: gain } });
+        const { levels, newMoves } = await applyExp(p.mon, p.species, gain);
+        this.expEarnedBy.add(p.mon.uid);
+        for (const lv of levels) {
+          p.stats = statsOf(p.mon, p.species);
+          ev.push({ t: "level", level: lv });
+          ev.push({ t: "msg", key: "game.battle.level_up", params: { ...this.nameParam(p), lv } });
+          ev.push(this.hpEv(p));
+        }
+        for (const nm of newMoves) this.pendingLearns.push({ uid: p.mon.uid, moveId: nm.moveId });
+      }
+      // refill this slot from the enemy bench
+      const slot = this.eSlots.indexOf(b);
+      while (this.enemyIdx < this.enemyParty.length - 1) {
+        this.enemyIdx++;
+        const next = this.enemyParty[this.enemyIdx];
+        if (next.curHP > 0) {
+          this.eSlots[slot] = await makeBattler(next);
+          ev.push({
+            t: "msg", key: "game.battle.enemy_switch",
+            params: { trainer: `%TR_${this.trainer?.nameKey ?? ""}%`, name: `%SPECIES_${next.speciesId}%` },
+          });
+          ev.push({ t: "switch", side: "enemy", slot, view: viewOf(this.eSlots[slot]) });
+          this.onSwitchIn(this.eSlots[slot], ev);
+          return;
+        }
+      }
+      // bench empty — victory once the other slot is down too
+      if (this.actives("enemy").length === 0) {
+        if (this.kind === "trainer" && this.trainer) {
+          ev.push({ t: "msg", key: "game.battle.you_win", params: { name: `%TR_${this.trainer.nameKey}%` } });
+          ev.push({ t: "msg", key: "game.battle.money_got", params: { n: this.trainer.prize } });
+        }
+        this.finish(ev, "win");
+      }
+      return;
+    }
+    // player side: total wipe = loss; otherwise the UI offers replacements
+    if (this.ableCount() === 0) {
+      ev.push({ t: "msg", key: "game.battle.whiteout" });
+      this.finish(ev, "lose");
+    }
+  }
+
+  /** player slots that are down and have a bench replacement available */
+  faintedPlayerSlots(): number[] {
+    if (!this.double) return [];
+    const out: number[] = [];
+    this.pSlots.forEach((b, i) => {
+      if (b && b.mon.curHP <= 0 && this.switchable().length > 0) out.push(i);
+    });
+    return out;
+  }
+
+  /** doubles: bring a bench mon into a specific fainted slot */
+  async replaceFaintedAt(slot: number, partyIdx: number): Promise<BattleEvent[]> {
+    const ev: BattleEvent[] = [];
+    const target = this.party[partyIdx];
+    if (target && target.curHP > 0) {
+      this.pSlots[slot] = await makeBattler(target);
+      ev.push({ t: "msg", key: "game.battle.switch_in", params: this.nameParam(this.pSlots[slot]) });
+      ev.push({ t: "switch", side: "player", slot, view: viewOf(this.pSlots[slot]) });
+      this.onSwitchIn(this.pSlots[slot], ev);
+    }
+    return this.record(ev);
+  }
+
+  /** one doubles turn: the player chose a move+target per living slot */
+  async doubleTurn(choices: { slot: number; moveIdx: number; target: number }[]): Promise<BattleEvent[]> {
+    return this.record(await this.doubleTurnInner(choices));
+  }
+
+  private async doubleTurnInner(choices: { slot: number; moveIdx: number; target: number }[]): Promise<BattleEvent[]> {
+    const ev: BattleEvent[] = [];
+    if (this.over) return ev;
+
+    interface Entry { att: Battler; move: MoveData; idx: number; prefTarget: number; spe: number; prio: number }
+    const entries: Entry[] = [];
+
+    for (const c of choices) {
+      const att = this.pSlots[c.slot];
+      if (!att || att.mon.curHP <= 0) continue;
+      const mv = this.resolveMoveChoice(att, c.moveIdx);
+      entries.push({ att, move: mv.move, idx: mv.idx, prefTarget: c.target, spe: this.effSpeed(att), prio: mv.move.pr });
+    }
+    for (const att of this.actives("enemy")) {
+      const vs = this.actives("player")[Math.floor(this.rng() * Math.max(1, this.actives("player").length))] ?? this.player;
+      const mv = this.pickEnemyMove(att, vs);
+      const prefTarget = this.pSlots.indexOf(vs);
+      entries.push({ att, move: mv.move, idx: mv.idx, prefTarget: Math.max(0, prefTarget), spe: this.effSpeed(att), prio: mv.move.pr });
+    }
+    entries.sort((a, b2) => (a.prio !== b2.prio ? b2.prio - a.prio : b2.spe !== a.spe ? b2.spe - a.spe : this.rng() < 0.5 ? -1 : 1));
+
+    for (const en of entries) {
+      if (this.over) break;
+      if (en.att.mon.curHP <= 0) continue;
+      const mySide = this.sideOf(en.att);
+      const foeSide: Side = mySide === "player" ? "enemy" : "player";
+      const tgtMeta = en.move.m?.tgt;
+      let targets: Battler[];
+      let spread = 1;
+      if (tgtMeta === "all-opponents" || tgtMeta === "all-other-pokemon") {
+        targets = [...this.actives(foeSide)];
+        if (tgtMeta === "all-other-pokemon") {
+          // Earthquake-style: the ally is hit too
+          targets.push(...this.actives(mySide).filter((x) => x !== en.att));
+        }
+        if (targets.length > 1) spread = 0.75;
+      } else {
+        const foeSlots = mySide === "player" ? this.eSlots : this.pSlots;
+        const preferred = foeSlots[en.prefTarget];
+        const pick = preferred && preferred.mon.curHP > 0 ? preferred : this.actives(foeSide)[0];
+        targets = pick ? [pick] : [];
+      }
+      if (targets.length === 0) continue;
+      // first target gets the full move pipeline (announce, gates, accuracy, effects)
+      const first = targets[0];
+      await this.executeMove(en.att, first, en.move, en.idx, ev, spread);
+      if (first.mon.curHP <= 0) await this.handleFaint(first, ev);
+      if (en.att.mon.curHP <= 0) await this.handleFaint(en.att, ev);
+      // remaining spread targets take direct damage (no re-announce / double gates)
+      for (const def of targets.slice(1)) {
+        if (this.over || en.att.mon.curHP <= 0) break;
+        if (def.mon.curHP <= 0 || en.move.c === 2) continue;
+        if (def.protectedT) {
+          ev.push({ t: "msg", key: "game.battle.protected", params: this.nameParam(def) });
+          continue;
+        }
+        if (effectiveness(en.move.t, def.species.t) === 0) {
+          ev.push({ t: "msg", key: "game.battle.immune" });
+          continue;
+        }
+        this.spreadMod = spread;
+        const { dmg, crit } = this.computeDamage(en.att, def, { move: en.move });
+        this.spreadMod = 1;
+        this.dealDamage(def, dmg, ev);
+        if (crit) ev.push({ t: "msg", key: "game.battle.crit" });
+        if (def.mon.curHP <= 0) await this.handleFaint(def, ev);
+      }
+    }
+    if (!this.over) this.endOfTurn(ev);
+    return ev;
   }
 
   private async doSwitch(partyIdx: number, ev: BattleEvent[], voluntary: boolean) {

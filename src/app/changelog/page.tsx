@@ -5,6 +5,11 @@ import { useI18n } from "@/lib/i18n";
 
 const RELEASES: { v: string; date: string; zh: string[]; en: string[] }[] = [
   {
+    v: "v1.1.0", date: "2026-06-12",
+    zh: ["双打对战引擎（2v2、目标选择、范围招式 75% 减伤、波及队友）", "双打道场（三连战、+3BP/胜、通关 +6BP）", "双打专属 UI（双精灵、双血条、逐只指令、濒死换人）", "威吓双打化（同时压制两只对手）", "30 场单打回归零异常"],
+    en: ["Double battle engine (2v2, target selection, 75% spread damage, ally-hit moves)", "Battle Dojo (3-round doubles, +3 BP per win, +6 clear bonus)", "Dedicated doubles UI (dual sprites & HP bars, per-mon commands, KO replacements)", "Intimidate now hits both foes in doubles", "30-battle singles regression, zero errors"],
+  },
+  {
     v: "v1.0.0", date: "2026-06-12",
     zh: ["对战塔（7 连胜挑战、对手随你强度成长、设施战零经验）", "BP 点数 + BP 兑换商店（进化石/全复药/树果）", "新特性 +10（耐热/干燥皮肤/拨沙/拨雪/洁净之盐等）", "重大修复：战后脚本竞态（学招对话覆盖导致剧情挂起）", "训练家卡显示 BP 与塔纪录"],
     en: ["Battle Tower (7-win streaks, opponents scale to you, no facility exp)", "Battle Points + BP exchange shop (stones / Full Restores / berries)", "+10 abilities (Heatproof, Dry Skin, Sand Rush, Purifying Salt…)", "Major fix: post-battle script race (learn dialogs could hang story flows)", "Trainer card shows BP & tower record"],

@@ -17,6 +17,12 @@ type Mode = "intro" | "anim" | "menu" | "moves" | "party" | "bag" | "forced";
 
 export default function BattleUI() {
   const session = useGame((s) => s.battleSession);
+  if (session?.double) return <DoubleBattleUI />;
+  return <SingleBattleUI />;
+}
+
+function SingleBattleUI() {
+  const session = useGame((s) => s.battleSession);
   const trainer = useGame((s) => s.battleTrainer);
   const endBattle = useGame((s) => s.endBattle);
   const { t, locale } = useI18n();
@@ -405,6 +411,349 @@ export default function BattleUI() {
                 <div className="px-3 py-2 text-sm text-white/70">{t("game.bag.empty")}</div>
               )}
               <BackBtn onClick={() => setMode("menu")} label={t("common.back")} />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 2v2 double battles (Battle Dojo) — facility rules: no bag, no run, moves only
+// ---------------------------------------------------------------------------
+
+function DoubleBattleUI() {
+  const session = useGame((s) => s.battleSession);
+  const trainer = useGame((s) => s.battleTrainer);
+  const endBattle = useGame((s) => s.endBattle);
+  const { t, locale } = useI18n();
+
+  const [phase, setPhase] = useState<"intro" | "pick" | "target" | "anim" | "forced">("intro");
+  const [msg, setMsg] = useState("");
+  const [pvs, setPvs] = useState<BattlerPublicView[]>([]);
+  const [evs, setEvs] = useState<BattlerPublicView[]>([]);
+  const [anims, setAnims] = useState<Record<string, string>>({});
+  const [weather, setWeather] = useState<Weather>("none");
+  const [swirl, setSwirl] = useState(true);
+  const [actingSlot, setActingSlot] = useState(0);
+  const [forcedSlot, setForcedSlot] = useState(0);
+  const choicesRef = useRef<{ slot: number; moveIdx: number; target: number }[]>([]);
+  const pendingMove = useRef(0);
+  const dexRef = useRef<Map<number, DexEntry> | null>(null);
+  const movesRef = useRef<Map<number, MoveData> | null>(null);
+  const busyRef = useRef(false);
+
+  const resolveText = useCallback(
+    (key: string, params?: Record<string, string | number>) => {
+      const out: Record<string, string | number> = {};
+      for (const [k, v] of Object.entries(params ?? {})) {
+        if (typeof v === "string") {
+          out[k] = v.replace(/%(SPECIES|MOVE|ITEM|STAT|TR|ABILITY)_([\w.-]+)%/g, (_, kind, id) => {
+            if (kind === "SPECIES") return localName(dexRef.current?.get(Number(id))?.n, locale);
+            if (kind === "MOVE") return localName(movesRef.current?.get(Number(id))?.n, locale);
+            if (kind === "ITEM") return t(`items.${id}.n`);
+            if (kind === "STAT") return t(`game.stats.${id}`);
+            if (kind === "TR") return t(id);
+            if (kind === "ABILITY") return abilityName(id, locale);
+            return id;
+          });
+        } else out[k] = v;
+      }
+      return t(key, out);
+    },
+    [t, locale]
+  );
+
+  const refreshViews = useCallback(() => {
+    if (!session) return;
+    setPvs(session.playerViews());
+    setEvs(session.enemyViews());
+  }, [session]);
+
+  const setAnim = (side: Side, slot: number, cls: string) =>
+    setAnims((a) => ({ ...a, [`${side}${slot}`]: cls }));
+
+  const playEvents = useCallback(async (events: BattleEvent[]) => {
+    if (!session) return;
+    for (const e of events) {
+      const slot = "slot" in e && typeof e.slot === "number" ? e.slot : 0;
+      switch (e.t) {
+        case "msg": {
+          const text = resolveText(e.key, e.params);
+          setMsg(text);
+          await sleep(Math.min(2200, Math.max(750, text.length * 26)));
+          break;
+        }
+        case "hp": {
+          const setter = e.side === "player" ? setPvs : setEvs;
+          setter((vs) => vs.map((v, i) => (i === slot ? { ...v, hp: e.hp, maxHp: e.maxHp } : v)));
+          await sleep(450);
+          break;
+        }
+        case "status": {
+          const setter = e.side === "player" ? setPvs : setEvs;
+          setter((vs) => vs.map((v, i) => (i === slot ? { ...v, status: e.status } : v)));
+          await sleep(180);
+          break;
+        }
+        case "switch": {
+          const setter = e.side === "player" ? setPvs : setEvs;
+          setter((vs) => { const n = [...vs]; n[slot] = e.view; return n; });
+          setAnim(e.side, slot, "animate-pop");
+          await sleep(520);
+          setAnim(e.side, slot, "");
+          break;
+        }
+        case "level": audio.sfx("levelup"); await sleep(220); break;
+        case "weather": setWeather(e.weather); await sleep(140); break;
+        case "ability": audio.sfx("stat_up"); await sleep(320); break;
+        case "anim": {
+          if (e.kind === "attack") {
+            setAnim(e.side, slot, e.side === "player" ? "anim-lunge" : "anim-lunge-enemy");
+            await sleep(360); setAnim(e.side, slot, "");
+          } else if (e.kind === "faint") {
+            audio.sfx("faint"); setAnim(e.side, slot, "anim-faint"); await sleep(700);
+          } else if (e.kind.startsWith("hit")) {
+            audio.sfx(e.kind === "hit_super" ? "hit_super" : e.kind === "hit_weak" ? "hit_weak" : "hit");
+            setAnim(e.side, slot, "anim-shake anim-flash"); await sleep(440); setAnim(e.side, slot, "");
+          } else if (e.kind === "heal") { audio.sfx("heal"); await sleep(300); }
+          else if (e.kind === "stat_up") { audio.sfx("stat_up"); await sleep(260); }
+          else if (e.kind === "stat_down") { audio.sfx("stat_down"); await sleep(260); }
+          break;
+        }
+        case "end": break;
+      }
+    }
+  }, [session, resolveText]);
+
+  // intro
+  useEffect(() => {
+    if (!session) return;
+    let cancelled = false;
+    (async () => {
+      const [dexMap, moveMap] = await Promise.all([getDexMap(), getMoveMap()]);
+      if (cancelled) return;
+      dexRef.current = dexMap;
+      movesRef.current = moveMap;
+      refreshViews();
+      setTimeout(() => setSwirl(false), 700);
+      setMsg(t("game.battle.trainer_appear", { name: t(trainer?.nameKey ?? "") }));
+      await sleep(1400);
+      if (cancelled) return;
+      const intro = session.introAbilities();
+      if (intro.length) await playEvents(intro);
+      if (cancelled) return;
+      beginPick();
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
+
+  const firstAliveSlot = () => session!.pSlots.findIndex((b) => b && b.mon.curHP > 0);
+
+  const beginPick = () => {
+    choicesRef.current = [];
+    const s = firstAliveSlot();
+    setActingSlot(s < 0 ? 0 : s);
+    setPhase("pick");
+  };
+
+  const nextAliveSlotAfter = (slot: number) => {
+    if (!session) return -1;
+    for (let i = slot + 1; i < session.pSlots.length; i++) {
+      const b = session.pSlots[i];
+      if (b && b.mon.curHP > 0) return i;
+    }
+    return -1;
+  };
+
+  const chooseMove = (moveIdx: number) => {
+    if (!session) return;
+    const md = movesRef.current?.get(session.pSlots[actingSlot].mon.moves[moveIdx]?.id ?? -1);
+    pendingMove.current = moveIdx;
+    const foes = session.actives("enemy");
+    const isSpread = md?.m?.tgt === "all-opponents" || md?.m?.tgt === "all-other-pokemon";
+    if (!isSpread && foes.length > 1 && md && md.c !== 2) {
+      setPhase("target");
+    } else {
+      commitChoice(moveIdx, Math.max(0, session.eSlots.findIndex((b) => b && b.mon.curHP > 0)));
+    }
+  };
+
+  const commitChoice = (moveIdx: number, target: number) => {
+    if (!session) return;
+    choicesRef.current.push({ slot: actingSlot, moveIdx, target });
+    const nxt = nextAliveSlotAfter(actingSlot);
+    if (nxt >= 0) { setActingSlot(nxt); setPhase("pick"); }
+    else void runTurn();
+  };
+
+  const runTurn = async () => {
+    if (!session || busyRef.current) return;
+    busyRef.current = true;
+    setPhase("anim");
+    const events = await session.doubleTurn(choicesRef.current);
+    await playEvents(events);
+    refreshViews();
+    if (session.over) {
+      const result = session.result!;
+      if (result === "win") { audio.playMusic("victory"); await sleep(2000); }
+      busyRef.current = false;
+      await endBattle(result);
+      return;
+    }
+    const fainted = session.faintedPlayerSlots();
+    if (fainted.length > 0) {
+      setForcedSlot(fainted[0]);
+      setPhase("forced");
+    } else {
+      beginPick();
+    }
+    busyRef.current = false;
+  };
+
+  const forcedPick = async (partyIdx: number) => {
+    if (!session || busyRef.current) return;
+    busyRef.current = true;
+    setPhase("anim");
+    const events = await session.replaceFaintedAt(forcedSlot, partyIdx);
+    await playEvents(events);
+    refreshViews();
+    const fainted = session.faintedPlayerSlots();
+    if (fainted.length > 0) setForcedSlot(fainted[0]);
+    busyRef.current = false;
+    if (fainted.length > 0) setPhase("forced");
+    else beginPick();
+  };
+
+  if (!session || pvs.length === 0) {
+    return <div className="absolute inset-0 z-40 bg-[#0a0c16]" />;
+  }
+
+  const nameOf = (v: BattlerPublicView) => v.nickname ?? localName(dexRef.current?.get(v.speciesId)?.n, locale);
+  const acting = session.pSlots[actingSlot];
+
+  return (
+    <div className="absolute inset-0 z-40 flex flex-col overflow-hidden bg-gradient-to-b from-[#c8a2e8] via-[#b8c8e0] to-[#7ec850] text-ink">
+      {swirl && <div className="absolute inset-0 z-50 bg-[#0a0c16]" style={{ animation: "battleSwirl .7s ease-out forwards" }} />}
+      {weather !== "none" && <WeatherOverlay weather={weather} />}
+
+      <div className="relative flex-1">
+        {/* enemy info cards */}
+        <div className="absolute left-2 top-2 z-10 flex w-52 max-w-[48vw] flex-col gap-1">
+          {evs.map((v, i) => (
+            <div key={i} className={`rounded-lg border-2 border-ink/70 bg-white/90 px-2 py-1 shadow ${v.hp <= 0 ? "opacity-40" : ""}`}>
+              <div className="flex items-center justify-between gap-1">
+                <span className="truncate text-[12px] font-black">{nameOf(v)}</span>
+                <span className="text-[10px] font-bold text-slate-600">Lv.{v.level}</span>
+              </div>
+              <HPBar hp={v.hp} max={v.maxHp} />
+            </div>
+          ))}
+        </div>
+
+        {/* enemy sprites */}
+        <div className="absolute right-[4%] top-[10%] flex gap-2 sm:right-[10%] sm:gap-6">
+          {evs.map((v, i) => (
+            <div key={i} className={`relative ${anims[`enemy${i}`] ?? ""}`}>
+              {v.hp > 0 && <MonSprite id={v.speciesId} shiny={v.shiny} size={96} animateGen5 />}
+            </div>
+          ))}
+        </div>
+
+        {/* player sprites */}
+        <div className="absolute bottom-[2%] left-[4%] flex gap-2 sm:left-[10%] sm:gap-8">
+          {pvs.map((v, i) => (
+            <div key={i} className={`relative ${anims[`player${i}`] ?? ""}`}>
+              {v.hp > 0 && <MonSprite id={v.speciesId} shiny={v.shiny} back size={116} />}
+            </div>
+          ))}
+        </div>
+
+        {/* player info cards */}
+        <div className="absolute bottom-2 right-2 z-10 flex w-56 max-w-[52vw] flex-col gap-1">
+          {pvs.map((v, i) => (
+            <div key={i} className={`rounded-lg border-2 border-ink/70 bg-white/90 px-2 py-1 shadow ${v.hp <= 0 ? "opacity-40" : ""} ${phase === "pick" && i === actingSlot ? "ring-2 ring-amber-400" : ""}`}>
+              <div className="flex items-center justify-between gap-1">
+                <span className="truncate text-[12px] font-black">{nameOf(v)}</span>
+                <span className="text-[10px] font-bold text-slate-600">Lv.{v.level}</span>
+              </div>
+              <HPBar hp={v.hp} max={v.maxHp} showText />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* console */}
+      <div className="relative z-20 grid min-h-[150px] grid-cols-1 gap-2 border-t-4 border-ink/80 bg-[#16181f] p-3 sm:grid-cols-2">
+        <div className="pixel-panel flex items-center px-4 py-3 text-[15px] leading-relaxed">
+          {phase === "pick" && acting
+            ? t("game.battle.what_do", { name: acting.mon.nickname ?? localName(dexRef.current?.get(acting.mon.speciesId)?.n, locale) })
+            : phase === "target"
+            ? t("game.battle.choose_target")
+            : msg || "…"}
+        </div>
+
+        <div className="relative">
+          {phase === "pick" && acting && (
+            <div className="grid h-full grid-cols-2 gap-2">
+              {acting.mon.moves.map((m, i) => {
+                const md = movesRef.current?.get(m.id);
+                if (!md) return null;
+                return (
+                  <button
+                    key={i}
+                    disabled={m.pp <= 0}
+                    onClick={() => { audio.sfx("select"); chooseMove(i); }}
+                    className="pixel-btn flex flex-col items-start justify-center gap-0.5 px-3 py-1.5 text-left disabled:opacity-40"
+                    style={{ backgroundColor: TYPE_COLORS[md.t] + "e8", color: "#fff" }}
+                  >
+                    <span className="w-full truncate text-[13px] font-black drop-shadow">{localName(md.n, locale)}</span>
+                    <span className="text-[10px] font-bold opacity-90">
+                      {t(`types.${md.t}`)} · PP {m.pp}/{m.maxPp}{md.p ? ` · ${md.p}` : ""}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {phase === "target" && (
+            <div className="grid h-full grid-cols-2 gap-2">
+              {session.eSlots.map((b, i) =>
+                b && b.mon.curHP > 0 ? (
+                  <button
+                    key={i}
+                    onClick={() => { audio.sfx("select"); setPhase("pick"); commitChoice(pendingMove.current, i); }}
+                    className="pixel-btn flex items-center justify-center gap-2 bg-rose-700 px-3 py-2 font-black text-white"
+                  >
+                    <MonSprite id={b.mon.speciesId} size={36} />
+                    {localName(dexRef.current?.get(b.mon.speciesId)?.n, locale)}
+                  </button>
+                ) : null
+              )}
+            </div>
+          )}
+
+          {phase === "forced" && (
+            <div className="flex h-full flex-col gap-1 overflow-y-auto">
+              {session.switchable().map((idx) => {
+                const m = session.party[idx];
+                return (
+                  <button
+                    key={m.uid}
+                    onClick={() => { audio.sfx("select"); void forcedPick(idx); }}
+                    className="pixel-btn flex items-center gap-2 bg-white px-2 py-1 text-left"
+                  >
+                    <MonSprite id={m.speciesId} size={34} />
+                    <span className="flex-1 truncate text-[13px] font-bold">
+                      {m.nickname ?? localName(dexRef.current?.get(m.speciesId)?.n, locale)} <span className="text-slate-500">Lv.{m.level}</span>
+                    </span>
+                    <span className="text-[12px] font-black tabular-nums text-emerald-600">{m.curHP}</span>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>

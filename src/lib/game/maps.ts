@@ -43,6 +43,8 @@ export interface TrainerDef {
   reward?: { item: string; qty: number };
   /** facility battle: no exp/EVs awarded (Battle Tower) */
   noExp?: boolean;
+  /** 2v2 double battle (requires ≥2 able player mons; bag/run disabled) */
+  double?: boolean;
 }
 
 export interface NpcDef {
@@ -51,7 +53,7 @@ export interface NpcDef {
   dir: Dir;
   palette: string;
   dialogKeys?: string[];
-  script?: "professor" | "nurse" | "mart" | "mom" | "rivalIdle" | "rod" | "champion" | "legend" | "daycare" | "tower" | "bpshop";
+  script?: "professor" | "nurse" | "mart" | "mom" | "rivalIdle" | "rod" | "champion" | "legend" | "daycare" | "tower" | "bpshop" | "dojo";
   trainer?: TrainerDef;
   /** only visible when this flag is truthy / falsy */
   ifFlag?: string;
@@ -1499,6 +1501,7 @@ export const MAPS: Record<string, MapDef> = {
     npcs: [
       { id: "tower-recept", x: 2, y: 2, dir: "down", palette: "nurse", script: "tower" },
       { id: "tower-bp", x: 9, y: 2, dir: "down", palette: "clerk", script: "bpshop" },
+      { id: "tower-dojo", x: 5, y: 2, dir: "down", palette: "leader", script: "dojo" },
     ],
     items: [],
   },
